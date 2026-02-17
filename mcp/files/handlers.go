@@ -31,10 +31,10 @@ func (h *handlers) analyze(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	info, _ := os.Stat(path)
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "File: %s\n", path)
-	fmt.Fprintf(&sb, "Type: %s\n", fileType)
-	fmt.Fprintf(&sb, "Size: %d bytes\n", info.Size())
-	fmt.Fprintf(&sb, "Lines: %d\n\n", countLines(content))
+	_, _ = fmt.Fprintf(&sb, "File: %s\n", path)
+	_, _ = fmt.Fprintf(&sb, "Type: %s\n", fileType)
+	_, _ = fmt.Fprintf(&sb, "Size: %d bytes\n", info.Size())
+	_, _ = fmt.Fprintf(&sb, "Lines: %d\n\n", countLines(content))
 
 	switch fileType {
 	case "dockerfile":
@@ -88,14 +88,14 @@ func (h *handlers) lint(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Lint results for %s (%d issues):\n\n", path, len(issues))
+	_, _ = fmt.Fprintf(&sb, "Lint results for %s (%d issues):\n\n", path, len(issues))
 	for _, issue := range issues {
-		fmt.Fprintf(&sb, "%s %s: %s\n", issue.Severity.Icon(), issue.Severity, issue.Message)
+		_, _ = fmt.Fprintf(&sb, "%s %s: %s\n", issue.Severity.Icon(), issue.Severity, issue.Message)
 		if issue.Line > 0 {
-			fmt.Fprintf(&sb, "  Line %d\n", issue.Line)
+			_, _ = fmt.Fprintf(&sb, "  Line %d\n", issue.Line)
 		}
 		if issue.Fix != "" {
-			fmt.Fprintf(&sb, "  Fix: %s\n", issue.Fix)
+			_, _ = fmt.Fprintf(&sb, "  Fix: %s\n", issue.Fix)
 		}
 		sb.WriteString("\n")
 	}
@@ -133,9 +133,9 @@ func (h *handlers) validate(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Validation errors for %s:\n\n", path)
+	_, _ = fmt.Fprintf(&sb, "Validation errors for %s:\n\n", path)
 	for _, e := range validationErrors {
-		fmt.Fprintf(&sb, "  - %s\n", e)
+		_, _ = fmt.Fprintf(&sb, "  - %s\n", e)
 	}
 	return mcputil.ToolText("%s", sb.String())
 }
@@ -180,9 +180,9 @@ func (h *handlers) scanDir(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Found %d infrastructure files in %s:\n\n", len(files), dir)
+	_, _ = fmt.Fprintf(&sb, "Found %d infrastructure files in %s:\n\n", len(files), dir)
 	for _, f := range files {
-		fmt.Fprintf(&sb, "  [%s] %s (%d bytes)\n", f.Type, f.Path, f.Size)
+		_, _ = fmt.Fprintf(&sb, "  [%s] %s (%d bytes)\n", f.Type, f.Path, f.Size)
 	}
 
 	return mcputil.ToolText("%s", sb.String())
@@ -280,10 +280,10 @@ func analyzeDockerfile(content []byte) string {
 		}
 	}
 
-	fmt.Fprintf(&sb, "  Base images: %s\n", strings.Join(baseImages, " -> "))
-	fmt.Fprintf(&sb, "  Multi-stage: %v (%d stages)\n", fromCount > 1, fromCount)
-	fmt.Fprintf(&sb, "  Has USER instruction: %v\n", hasUser)
-	fmt.Fprintf(&sb, "  Has HEALTHCHECK: %v\n", hasHealthcheck)
+	_, _ = fmt.Fprintf(&sb, "  Base images: %s\n", strings.Join(baseImages, " -> "))
+	_, _ = fmt.Fprintf(&sb, "  Multi-stage: %v (%d stages)\n", fromCount > 1, fromCount)
+	_, _ = fmt.Fprintf(&sb, "  Has USER instruction: %v\n", hasUser)
+	_, _ = fmt.Fprintf(&sb, "  Has HEALTHCHECK: %v\n", hasHealthcheck)
 
 	return sb.String()
 }
@@ -297,10 +297,10 @@ func analyzeKubernetesYAML(content []byte) string {
 		for _, line := range strings.Split(s, "\n") {
 			trimmed := strings.TrimSpace(line)
 			if strings.HasPrefix(trimmed, "kind:") {
-				fmt.Fprintf(&sb, "  Kind: %s\n", strings.TrimPrefix(trimmed, "kind:"))
+				_, _ = fmt.Fprintf(&sb, "  Kind: %s\n", strings.TrimPrefix(trimmed, "kind:"))
 			}
 			if strings.HasPrefix(trimmed, "apiVersion:") {
-				fmt.Fprintf(&sb, "  API Version: %s\n", strings.TrimPrefix(trimmed, "apiVersion:"))
+				_, _ = fmt.Fprintf(&sb, "  API Version: %s\n", strings.TrimPrefix(trimmed, "apiVersion:"))
 			}
 		}
 	}
@@ -329,11 +329,11 @@ func analyzeComposeFile(content []byte) string {
 			indent := len(line) - len(strings.TrimLeft(line, " \t"))
 			if indent <= 4 && strings.HasSuffix(trimmed, ":") {
 				serviceCount++
-				fmt.Fprintf(&sb, "  Service: %s\n", strings.TrimSuffix(trimmed, ":"))
+				_, _ = fmt.Fprintf(&sb, "  Service: %s\n", strings.TrimSuffix(trimmed, ":"))
 			}
 		}
 	}
-	fmt.Fprintf(&sb, "  Total services: %d\n", serviceCount)
+	_, _ = fmt.Fprintf(&sb, "  Total services: %d\n", serviceCount)
 
 	return sb.String()
 }
@@ -347,7 +347,7 @@ func analyzeTerraform(content []byte) string {
 		trimmed := strings.TrimSpace(line)
 		if strings.HasPrefix(trimmed, "resource ") || strings.HasPrefix(trimmed, "data ") ||
 			strings.HasPrefix(trimmed, "module ") || strings.HasPrefix(trimmed, "provider ") {
-			fmt.Fprintf(&sb, "  %s\n", trimmed)
+			_, _ = fmt.Fprintf(&sb, "  %s\n", trimmed)
 		}
 	}
 

@@ -40,7 +40,7 @@ func (h *handlers) doGet(ctx context.Context, path string, params url.Values) ([
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -163,10 +163,10 @@ func (h *handlers) alerts(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		if alert.State == "pending" {
 			icon = "🟡"
 		}
-		fmt.Fprintf(&sb, "%s %s [%s]\n", icon, name, alert.State)
-		fmt.Fprintf(&sb, "  Active since: %s\n", alert.ActiveAt)
+		_, _ = fmt.Fprintf(&sb, "%s %s [%s]\n", icon, name, alert.State)
+		_, _ = fmt.Fprintf(&sb, "  Active since: %s\n", alert.ActiveAt)
 		if summary, ok := alert.Annotations["summary"]; ok {
-			fmt.Fprintf(&sb, "  Summary: %s\n", summary)
+			_, _ = fmt.Fprintf(&sb, "  Summary: %s\n", summary)
 		}
 		sb.WriteString("\n")
 	}
@@ -216,9 +216,9 @@ func (h *handlers) targets(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 			icon = "✗"
 		}
 		job := t.Labels["job"]
-		fmt.Fprintf(&sb, "%s %s (%s) — %s\n", icon, job, t.ScrapeURL, t.Health)
+		_, _ = fmt.Fprintf(&sb, "%s %s (%s) — %s\n", icon, job, t.ScrapeURL, t.Health)
 		if t.LastError != "" {
-			fmt.Fprintf(&sb, "  Error: %s\n", t.LastError)
+			_, _ = fmt.Fprintf(&sb, "  Error: %s\n", t.LastError)
 		}
 	}
 
@@ -277,7 +277,7 @@ func (h *handlers) series(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 			}
 		}
 		name := s["__name__"]
-		fmt.Fprintf(&sb, "%s{%s}\n", name, strings.Join(parts, ", "))
+		_, _ = fmt.Fprintf(&sb, "%s{%s}\n", name, strings.Join(parts, ", "))
 	}
 
 	return mcputil.ToolText("%d series matching %q:\n\n%s", len(seriesList), match, sb.String())
@@ -320,7 +320,7 @@ func formatQueryResult(data json.RawMessage) string {
 	}
 
 	var sb strings.Builder
-	fmt.Fprintf(&sb, "Result type: %s\n\n", qd.ResultType)
+	_, _ = fmt.Fprintf(&sb, "Result type: %s\n\n", qd.ResultType)
 
 	for _, r := range qd.Result {
 		var metric struct {
@@ -342,17 +342,17 @@ func formatQueryResult(data json.RawMessage) string {
 				labels = append(labels, fmt.Sprintf("%s=%q", k, v))
 			}
 		}
-		fmt.Fprintf(&sb, "%s{%s}", name, strings.Join(labels, ", "))
+		_, _ = fmt.Fprintf(&sb, "%s{%s}", name, strings.Join(labels, ", "))
 
 		if metric.Value != nil && len(metric.Value) == 2 {
-			fmt.Fprintf(&sb, " => %v\n", metric.Value[1])
+			_, _ = fmt.Fprintf(&sb, " => %v\n", metric.Value[1])
 		} else if metric.Values != nil {
 			sb.WriteString(":\n")
 			for _, v := range metric.Values {
 				if len(v) == 2 {
 					ts, _ := v[0].(float64)
 					t := time.Unix(int64(ts), 0).Format("15:04:05")
-					fmt.Fprintf(&sb, "  %s: %v\n", t, v[1])
+					_, _ = fmt.Fprintf(&sb, "  %s: %v\n", t, v[1])
 				}
 			}
 		}

@@ -39,7 +39,7 @@ func (h *handlers) getPods(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "NAMESPACE\tNAME\tSTATUS\tRESTARTS\tAGE\n")
+	_, _ = fmt.Fprintf(w, "NAMESPACE\tNAME\tSTATUS\tRESTARTS\tAGE\n")
 
 	for _, pod := range pods.Items {
 		restarts := int32(0)
@@ -47,10 +47,10 @@ func (h *handlers) getPods(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 			restarts += cs.RestartCount
 		}
 		age := formatAge(pod.CreationTimestamp.Time)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%d\t%s\n",
 			pod.Namespace, pod.Name, string(pod.Status.Phase), restarts, age)
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("%d pods found:\n\n%s", len(pods.Items), buf.String())
 }
@@ -80,7 +80,7 @@ func (h *handlers) getPodLogs(ctx context.Context, req mcp.CallToolRequest) (*mc
 	if err != nil {
 		return mcputil.ToolError("failed to get logs: %v", err)
 	}
-	defer stream.Close()
+	defer func() { _ = stream.Close() }()
 
 	logs, err := io.ReadAll(stream)
 	if err != nil {
@@ -165,20 +165,20 @@ func (h *handlers) getEvents(ctx context.Context, req mcp.CallToolRequest) (*mcp
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "TIME\tTYPE\tREASON\tOBJECT\tMESSAGE\n")
+	_, _ = fmt.Fprintf(w, "TIME\tTYPE\tREASON\tOBJECT\tMESSAGE\n")
 
 	limit := 50
 	for i, event := range events.Items {
 		if i >= limit {
 			break
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s/%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s/%s\t%s\n",
 			formatAge(event.LastTimestamp.Time),
 			event.Type, event.Reason,
 			event.InvolvedObject.Kind, event.InvolvedObject.Name,
 			truncate(event.Message, 80))
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("%d events (showing last %d):\n\n%s", len(events.Items), min(limit, len(events.Items)), buf.String())
 }
@@ -191,7 +191,7 @@ func (h *handlers) getNodes(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "NAME\tSTATUS\tROLES\tAGE\tCPU\tMEMORY\n")
+	_, _ = fmt.Fprintf(w, "NAME\tSTATUS\tROLES\tAGE\tCPU\tMEMORY\n")
 
 	for _, node := range nodes.Items {
 		status := "NotReady"
@@ -209,13 +209,13 @@ func (h *handlers) getNodes(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		if len(roles) == 0 {
 			roles = []string{"<none>"}
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
 			node.Name, status, strings.Join(roles, ","),
 			formatAge(node.CreationTimestamp.Time),
 			node.Status.Capacity.Cpu().String(),
 			node.Status.Capacity.Memory().String())
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("%d nodes:\n\n%s", len(nodes.Items), buf.String())
 }
@@ -230,16 +230,16 @@ func (h *handlers) getDeployments(ctx context.Context, req mcp.CallToolRequest) 
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "NAMESPACE\tNAME\tREADY\tUP-TO-DATE\tAVAILABLE\tAGE\n")
+	_, _ = fmt.Fprintf(w, "NAMESPACE\tNAME\tREADY\tUP-TO-DATE\tAVAILABLE\tAGE\n")
 
 	for _, d := range deployments.Items {
-		fmt.Fprintf(w, "%s\t%s\t%d/%d\t%d\t%d\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%d/%d\t%d\t%d\t%s\n",
 			d.Namespace, d.Name,
 			d.Status.ReadyReplicas, *d.Spec.Replicas,
 			d.Status.UpdatedReplicas, d.Status.AvailableReplicas,
 			formatAge(d.CreationTimestamp.Time))
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("%d deployments:\n\n%s", len(deployments.Items), buf.String())
 }
@@ -254,19 +254,19 @@ func (h *handlers) getServices(ctx context.Context, req mcp.CallToolRequest) (*m
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "NAMESPACE\tNAME\tTYPE\tCLUSTER-IP\tPORTS\tAGE\n")
+	_, _ = fmt.Fprintf(w, "NAMESPACE\tNAME\tTYPE\tCLUSTER-IP\tPORTS\tAGE\n")
 
 	for _, svc := range services.Items {
 		ports := []string{}
 		for _, p := range svc.Spec.Ports {
 			ports = append(ports, fmt.Sprintf("%d/%s", p.Port, p.Protocol))
 		}
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
 			svc.Namespace, svc.Name, svc.Spec.Type,
 			svc.Spec.ClusterIP, strings.Join(ports, ","),
 			formatAge(svc.CreationTimestamp.Time))
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("%d services:\n\n%s", len(services.Items), buf.String())
 }
@@ -383,14 +383,14 @@ func (h *handlers) top(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 		}
 		var buf bytes.Buffer
 		w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-		fmt.Fprintf(w, "NAME\tCPU CAPACITY\tMEMORY CAPACITY\n")
+		_, _ = fmt.Fprintf(w, "NAME\tCPU CAPACITY\tMEMORY CAPACITY\n")
 		for _, node := range nodes.Items {
-			fmt.Fprintf(w, "%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n",
 				node.Name,
 				node.Status.Capacity.Cpu().String(),
 				node.Status.Capacity.Memory().String())
 		}
-		w.Flush()
+		_ = w.Flush()
 		return mcputil.ToolText("Node resources:\n\n%s\nNote: For real-time usage, metrics-server must be installed.", buf.String())
 
 	case "pods":
@@ -401,7 +401,7 @@ func (h *handlers) top(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 		}
 		var buf bytes.Buffer
 		w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-		fmt.Fprintf(w, "NAMESPACE\tNAME\tCPU REQUEST\tMEMORY REQUEST\tCPU LIMIT\tMEMORY LIMIT\n")
+		_, _ = fmt.Fprintf(w, "NAMESPACE\tNAME\tCPU REQUEST\tMEMORY REQUEST\tCPU LIMIT\tMEMORY LIMIT\n")
 		for _, pod := range pods.Items {
 			cpuReq, memReq, cpuLim, memLim := "0", "0", "0", "0"
 			for _, c := range pod.Spec.Containers {
@@ -418,10 +418,10 @@ func (h *handlers) top(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 					memLim = r.String()
 				}
 			}
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n",
 				pod.Namespace, pod.Name, cpuReq, memReq, cpuLim, memLim)
 		}
-		w.Flush()
+		_ = w.Flush()
 		return mcputil.ToolText("Pod resources:\n\n%s", buf.String())
 
 	default:
@@ -431,33 +431,33 @@ func (h *handlers) top(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 
 func formatPodDescription(pod *corev1.Pod) string {
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "Pod: %s/%s\n", pod.Namespace, pod.Name)
-	fmt.Fprintf(&buf, "Status: %s\n", pod.Status.Phase)
-	fmt.Fprintf(&buf, "Node: %s\n", pod.Spec.NodeName)
-	fmt.Fprintf(&buf, "IP: %s\n", pod.Status.PodIP)
-	fmt.Fprintf(&buf, "Labels: %v\n\n", pod.Labels)
+	_, _ = fmt.Fprintf(&buf, "Pod: %s/%s\n", pod.Namespace, pod.Name)
+	_, _ = fmt.Fprintf(&buf, "Status: %s\n", pod.Status.Phase)
+	_, _ = fmt.Fprintf(&buf, "Node: %s\n", pod.Spec.NodeName)
+	_, _ = fmt.Fprintf(&buf, "IP: %s\n", pod.Status.PodIP)
+	_, _ = fmt.Fprintf(&buf, "Labels: %v\n\n", pod.Labels)
 
-	fmt.Fprintf(&buf, "Containers:\n")
+	_, _ = fmt.Fprintf(&buf, "Containers:\n")
 	for _, c := range pod.Spec.Containers {
-		fmt.Fprintf(&buf, "  - %s (image: %s)\n", c.Name, c.Image)
-		fmt.Fprintf(&buf, "    Resources: requests=%v limits=%v\n", c.Resources.Requests, c.Resources.Limits)
+		_, _ = fmt.Fprintf(&buf, "  - %s (image: %s)\n", c.Name, c.Image)
+		_, _ = fmt.Fprintf(&buf, "    Resources: requests=%v limits=%v\n", c.Resources.Requests, c.Resources.Limits)
 	}
 
-	fmt.Fprintf(&buf, "\nContainer Statuses:\n")
+	_, _ = fmt.Fprintf(&buf, "\nContainer Statuses:\n")
 	for _, cs := range pod.Status.ContainerStatuses {
-		fmt.Fprintf(&buf, "  - %s: ready=%v, restarts=%d\n", cs.Name, cs.Ready, cs.RestartCount)
+		_, _ = fmt.Fprintf(&buf, "  - %s: ready=%v, restarts=%d\n", cs.Name, cs.Ready, cs.RestartCount)
 		if cs.State.Waiting != nil {
-			fmt.Fprintf(&buf, "    Waiting: %s (%s)\n", cs.State.Waiting.Reason, cs.State.Waiting.Message)
+			_, _ = fmt.Fprintf(&buf, "    Waiting: %s (%s)\n", cs.State.Waiting.Reason, cs.State.Waiting.Message)
 		}
 		if cs.State.Terminated != nil {
-			fmt.Fprintf(&buf, "    Terminated: %s (exit=%d)\n", cs.State.Terminated.Reason, cs.State.Terminated.ExitCode)
+			_, _ = fmt.Fprintf(&buf, "    Terminated: %s (exit=%d)\n", cs.State.Terminated.Reason, cs.State.Terminated.ExitCode)
 		}
 	}
 
 	if len(pod.Status.Conditions) > 0 {
-		fmt.Fprintf(&buf, "\nConditions:\n")
+		_, _ = fmt.Fprintf(&buf, "\nConditions:\n")
 		for _, c := range pod.Status.Conditions {
-			fmt.Fprintf(&buf, "  %s: %s\n", c.Type, c.Status)
+			_, _ = fmt.Fprintf(&buf, "  %s: %s\n", c.Type, c.Status)
 		}
 	}
 

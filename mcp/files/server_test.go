@@ -149,9 +149,9 @@ func TestScanDir(t *testing.T) {
 	dir := t.TempDir()
 
 	// Create test files
-	os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0644)
-	os.WriteFile(filepath.Join(dir, "deploy.yaml"), []byte("apiVersion: v1\nkind: Pod"), 0644)
-	os.WriteFile(filepath.Join(dir, "readme.md"), []byte("# Hello"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "Dockerfile"), []byte("FROM alpine"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "deploy.yaml"), []byte("apiVersion: v1\nkind: Pod"), 0644)
+	_ = os.WriteFile(filepath.Join(dir, "readme.md"), []byte("# Hello"), 0644)
 
 	h := &handlers{rulesets: []string{"dockerfile", "kubernetes"}}
 

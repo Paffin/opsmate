@@ -20,13 +20,13 @@ func GenerateSystemPrompt(cfg *config.Config, infraCtx *InfraContext) string {
 	if cfg.Servers.Kubernetes.Enabled {
 		sb.WriteString("### Kubernetes\n")
 		if infraCtx.KubernetesContext != "" {
-			fmt.Fprintf(&sb, "- Context: `%s`\n", infraCtx.KubernetesContext)
+			_, _ = fmt.Fprintf(&sb, "- Context: `%s`\n", infraCtx.KubernetesContext)
 		}
 		if infraCtx.KubernetesCluster != "" {
-			fmt.Fprintf(&sb, "- Cluster: `%s`\n", infraCtx.KubernetesCluster)
+			_, _ = fmt.Fprintf(&sb, "- Cluster: `%s`\n", infraCtx.KubernetesCluster)
 		}
 		if infraCtx.KubernetesNodes > 0 {
-			fmt.Fprintf(&sb, "- Nodes: %d\n", infraCtx.KubernetesNodes)
+			_, _ = fmt.Fprintf(&sb, "- Nodes: %d\n", infraCtx.KubernetesNodes)
 		}
 		sb.WriteString("- Tools: k8s_get_pods, k8s_get_pod_logs, k8s_describe, k8s_get_events, k8s_get_nodes, k8s_get_deployments, k8s_get_services, k8s_rollout_status, k8s_top")
 		if !cfg.Servers.Kubernetes.ReadOnly {
@@ -38,10 +38,10 @@ func GenerateSystemPrompt(cfg *config.Config, infraCtx *InfraContext) string {
 	if cfg.Servers.Docker.Enabled {
 		sb.WriteString("### Docker\n")
 		if infraCtx.DockerVersion != "" {
-			fmt.Fprintf(&sb, "- Version: %s\n", infraCtx.DockerVersion)
+			_, _ = fmt.Fprintf(&sb, "- Version: %s\n", infraCtx.DockerVersion)
 		}
 		if infraCtx.DockerContainers > 0 {
-			fmt.Fprintf(&sb, "- Running containers: %d\n", infraCtx.DockerContainers)
+			_, _ = fmt.Fprintf(&sb, "- Running containers: %d\n", infraCtx.DockerContainers)
 		}
 		sb.WriteString("- Tools: docker_ps, docker_logs, docker_inspect, docker_stats, docker_images, docker_compose_ps, docker_compose_logs")
 		if !cfg.Servers.Docker.ReadOnly {
@@ -52,14 +52,14 @@ func GenerateSystemPrompt(cfg *config.Config, infraCtx *InfraContext) string {
 
 	if cfg.Servers.Prometheus.Enabled {
 		sb.WriteString("### Prometheus\n")
-		fmt.Fprintf(&sb, "- URL: %s\n", cfg.Servers.Prometheus.URL)
+		_, _ = fmt.Fprintf(&sb, "- URL: %s\n", cfg.Servers.Prometheus.URL)
 		sb.WriteString("- Tools: prom_query, prom_query_range, prom_alerts, prom_targets, prom_rules, prom_series, prom_label_values\n\n")
 	}
 
 	if cfg.Servers.Files.Enabled {
 		sb.WriteString("### File Analysis\n")
 		sb.WriteString("- Tools: file_analyze, file_lint, file_validate, file_scan_dir\n")
-		fmt.Fprintf(&sb, "- Rulesets: %s\n\n", strings.Join(cfg.Servers.Files.Rulesets, ", "))
+		_, _ = fmt.Fprintf(&sb, "- Rulesets: %s\n\n", strings.Join(cfg.Servers.Files.Rulesets, ", "))
 	}
 
 	sb.WriteString("## Guidelines\n\n")
