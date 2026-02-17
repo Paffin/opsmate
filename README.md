@@ -1,186 +1,281 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="opsmate logo" width="200" />
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo.png">
+    <img alt="opsmate" src="docs/assets/logo.png" width="160">
+  </picture>
 </p>
 
 <h1 align="center">opsmate</h1>
 
 <p align="center">
-  <strong>DevOps AI Assistant powered by Claude Code</strong><br>
-  Give Claude Code full understanding of your infrastructure. One command.
+  <strong>One command to give Claude Code full understanding of your infrastructure</strong>
 </p>
 
 <p align="center">
-  <a href="https://github.com/YOUR_USERNAME/opsmate/releases"><img src="https://img.shields.io/github/v/release/YOUR_USERNAME/opsmate?style=flat-square" alt="Release"></a>
-  <a href="https://github.com/YOUR_USERNAME/opsmate/actions"><img src="https://img.shields.io/github/actions/workflow/status/YOUR_USERNAME/opsmate/ci.yml?style=flat-square" alt="CI"></a>
+  <a href="https://github.com/paffin/opsmate/releases"><img src="https://img.shields.io/github/v/release/paffin/opsmate?style=flat-square&color=00ADD8" alt="Release"></a>
+  <a href="https://github.com/paffin/opsmate/actions"><img src="https://img.shields.io/github/actions/workflow/status/paffin/opsmate/ci.yml?style=flat-square" alt="CI"></a>
+  <a href="https://goreportcard.com/report/github.com/paffin/opsmate"><img src="https://goreportcard.com/badge/github.com/paffin/opsmate?style=flat-square" alt="Go Report"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
-  <a href="https://goreportcard.com/report/github.com/YOUR_USERNAME/opsmate"><img src="https://goreportcard.com/badge/github.com/YOUR_USERNAME/opsmate?style=flat-square" alt="Go Report Card"></a>
+  <a href="https://github.com/paffin/opsmate/stargazers"><img src="https://img.shields.io/github/stars/paffin/opsmate?style=flat-square&color=yellow" alt="Stars"></a>
 </p>
+
+<p align="center">
+  <code>opsmate</code> launches <a href="https://modelcontextprotocol.io/">MCP servers</a> that connect Claude Code directly to Kubernetes, Docker, Prometheus, and your infra files.<br>
+  <strong>30 DevOps tools. Zero copy-paste. Single binary.</strong>
+</p>
+
+<br>
 
 <p align="center">
   <img src="docs/assets/demo.gif" alt="opsmate demo" width="720" />
 </p>
 
----
+<br>
 
-## The Problem
+## Why?
 
-You're debugging a production incident at 2 AM. You switch between `kubectl`, Prometheus, Docker logs, and ChatGPT — copy-pasting context back and forth. The AI doesn't know your cluster state. You waste time explaining what you're looking at.
+You're debugging a production incident at 2 AM. You switch between `kubectl`, Prometheus dashboards, Docker logs, and ChatGPT — copy-pasting context back and forth. The AI doesn't know your cluster state. You waste precious time explaining what you're looking at.
 
-## The Solution
-
-**opsmate** launches specialized [MCP servers](https://modelcontextprotocol.io/) that connect Claude Code directly to your infrastructure. No copy-pasting. No context switching. Claude sees your pods, metrics, logs, and configs — and acts on them.
+**opsmate fixes this.** One command — and Claude Code can see your pods, query your metrics, read your logs, and lint your configs. It acts on live infrastructure, not stale copy-paste.
 
 ```bash
 $ opsmate
-🔧 Starting MCP servers...
-  ✔ kubernetes (context: production, 47 pods)
-  ✔ docker (23 containers)
-  ✔ prometheus (http://prometheus:9090)
-  ✔ file-analyzer (3 rulesets)
+  opsmate — DevOps AI Assistant
 
-🚀 Launching Claude Code with DevOps superpowers...
+  MCP Servers:
+  ✔ kubernetes (context: production)
+  ✔ docker (readonly)
+  ✔ prometheus (http://prometheus:9090)
+  ✔ file-analyzer
+
+  Launching Claude Code with DevOps superpowers...
 ```
 
-Then just talk to it:
+Then just ask:
 
 ```
 > Why is pod nginx-7b5f9 crashing?
 
 I'll investigate the pod failure.
 
-• Pod status: CrashLoopBackOff (restarted 7 times)
-• Last log: "Killed" — OOMKilled
-• Memory limit: 128Mi, actual usage: ~240Mi
-• Node memory: 87% utilized
+[k8s_get_pods]      → nginx-7b5f9: CrashLoopBackOff (7 restarts)
+[k8s_get_pod_logs]  → "Killed" — OOMKilled
+[k8s_describe]      → limits.memory: 128Mi
+[prom_query]        → container_memory_usage: ~240Mi
 
 Root cause: The container exceeds its 128Mi memory limit.
 
-Fix: kubectl set resources deployment/nginx --limits=memory=512Mi
+Recommended fix:
+  kubectl set resources deployment/nginx --limits=memory=512Mi
 
 Apply this fix? [y/N]
 ```
 
-## Quick Start
-
-### Install
+## Install
 
 ```bash
-# Homebrew (macOS/Linux)
-brew install YOUR_USERNAME/tap/opsmate
-
-# Go install
-go install github.com/YOUR_USERNAME/opsmate/cmd/opsmate@latest
+# Go install (recommended)
+go install github.com/paffin/opsmate/cmd/opsmate@latest
 
 # Or download binary
-curl -sSL https://raw.githubusercontent.com/YOUR_USERNAME/opsmate/main/scripts/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/paffin/opsmate/main/scripts/install.sh | bash
+
+# Or build from source
+git clone https://github.com/paffin/opsmate && cd opsmate && go build -o opsmate ./cmd/opsmate
 ```
 
-### Prerequisites
+**Prerequisites:** [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated.
 
-- [Claude Code](https://docs.anthropic.com/en/docs/claude-code) installed and authenticated
-- Access to your infrastructure (kubeconfig, docker socket, prometheus URL)
+## 30 Tools Across 4 Domains
 
-### Run
+<table>
+<tr>
+<td width="50%" valign="top">
 
-```bash
-# Auto-detect everything
-opsmate
+### Kubernetes (11 tools)
 
-# Specify what to connect
-opsmate --kube-context production --prometheus http://prom:9090
+| Tool | What it does |
+|------|-------------|
+| `k8s_get_pods` | List pods with status |
+| `k8s_get_pod_logs` | Read pod logs |
+| `k8s_describe` | Describe any resource |
+| `k8s_get_events` | Cluster events |
+| `k8s_get_nodes` | Node status & resources |
+| `k8s_get_deployments` | Deployment status |
+| `k8s_get_services` | Services & endpoints |
+| `k8s_apply` | Apply YAML manifest* |
+| `k8s_scale` | Scale deployment* |
+| `k8s_rollout_status` | Rollout progress |
+| `k8s_top` | CPU/memory usage |
 
-# Read-only mode (safe for production)
-opsmate --readonly
+</td>
+<td width="50%" valign="top">
+
+### Docker (8 tools)
+
+| Tool | What it does |
+|------|-------------|
+| `docker_ps` | List containers |
+| `docker_logs` | Container logs |
+| `docker_inspect` | Container details |
+| `docker_stats` | Resource usage |
+| `docker_images` | List images |
+| `docker_compose_ps` | Compose status |
+| `docker_compose_logs` | Compose logs |
+| `docker_exec` | Run command* |
+
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+
+### Prometheus (7 tools)
+
+| Tool | What it does |
+|------|-------------|
+| `prom_query` | Instant PromQL query |
+| `prom_query_range` | Range query |
+| `prom_alerts` | Firing alerts |
+| `prom_targets` | Scrape targets |
+| `prom_rules` | Alert/recording rules |
+| `prom_series` | Find time series |
+| `prom_label_values` | Label values |
+
+</td>
+<td width="50%" valign="top">
+
+### File Analyzer (4 tools)
+
+| Tool | What it does |
+|------|-------------|
+| `file_analyze` | Analyze infra file |
+| `file_lint` | Best practices check |
+| `file_validate` | Syntax validation |
+| `file_scan_dir` | Find infra files |
+
+**Built-in lint rules for:**
+Dockerfile, Kubernetes YAML, Docker Compose, Terraform
+
+</td>
+</tr>
+</table>
+
+<sub>* Destructive operations require confirmation and can be disabled with <code>--readonly</code></sub>
+
+## Real-World Scenarios
+
+<details>
+<summary><strong>Scenario 1:</strong> "Why is my pod crashing?"</summary>
+
+```
+> My nginx deployment keeps restarting, help me figure out why
+
+Claude: Let me investigate...
+[k8s_get_pods]     → Found pod nginx-7b5f9 in CrashLoopBackOff
+[k8s_get_pod_logs] → OOMKilled detected
+[k8s_describe]     → limits.memory: 128Mi
+[prom_query]       → container_memory_usage avg: 240Mi
+
+Root Cause: OOMKilled — container uses ~240Mi but limit is 128Mi
+
+Recommended actions:
+1. Increase memory limit: kubectl set resources deploy/nginx --limits=memory=512Mi
+2. Check for memory leaks in nginx config
+
+Apply fix #1? [y/N]
+```
+</details>
+
+<details>
+<summary><strong>Scenario 2:</strong> "Audit my Dockerfile"</summary>
+
+```
+> Analyze the Dockerfile in ./app/
+
+Claude: Let me review it...
+[file_lint ./app/Dockerfile]
+
+Found 5 issues:
+  [!] CRITICAL: Running as root (no USER instruction)
+  [~] WARNING:  Using latest tag (FROM node:latest)
+  [~] WARNING:  No HEALTHCHECK defined
+  [i] INFO:     Consider multi-stage build to reduce image size
+  [i] INFO:     .dockerignore not found
+
+Want me to generate a fixed version?
+```
+</details>
+
+<details>
+<summary><strong>Scenario 3:</strong> "Give me a cluster overview"</summary>
+
+```
+> Show me what's happening in production
+
+Claude: Collecting cluster status...
+[k8s_get_nodes]  → 3 nodes, all Ready
+[k8s_top nodes]  → CPU: 45%, Memory: 62%
+[k8s_get_pods]   → 47 pods, 2 not Running
+[prom_alerts]    → 1 firing: HighMemoryUsage on node-2
+
+Cluster Overview:
+  Nodes:  3/3 healthy (CPU: 45%, Mem: 62%)
+  Pods:   45/47 running (2 pending in staging)
+  Alerts: 1 firing — HighMemoryUsage on node-2 (87%)
+
+node-2 memory is at 87%. Want me to investigate which pods
+are consuming the most memory?
+```
+</details>
+
+## How It Works
+
+```
+                        ┌──────────────────┐
+                        │   opsmate CLI    │
+                        │   (single Go     │
+                        │    binary)       │
+                        └────────┬─────────┘
+                                 │
+                    generates .mcp.json + CLAUDE.md
+                    launches Claude Code
+                                 │
+               ┌─────────────────┼─────────────────┐
+               ▼                 ▼                 ▼
+        ┌────────────┐   ┌────────────┐   ┌────────────┐
+        │  K8s MCP   │   │ Docker MCP │   │  Prom MCP  │  ...
+        │  (stdio)   │   │  (stdio)   │   │  (stdio)   │
+        └──────┬─────┘   └──────┬─────┘   └──────┬─────┘
+               │                │                │
+               ▼                ▼                ▼
+          K8s Cluster      Docker Host      Prometheus
 ```
 
-### Configure
+1. `opsmate` reads config from `~/.opsmate/config.yaml`
+2. Generates `.mcp.json` pointing to `opsmate mcp <server>` subcommands
+3. Injects DevOps system prompt via `CLAUDE.md`
+4. Launches `claude` CLI — which spawns MCP servers as needed
+5. Each MCP server communicates over **stdio** — no ports, no API keys
+6. On exit — clean up `.mcp.json` and `CLAUDE.md` markers
 
-```bash
-# Interactive setup
-opsmate init
+## Safety First
 
-# Or edit manually
-cat ~/.opsmate/config.yaml
-```
-
-## What Can It Do?
-
-### 🐳 Kubernetes
-Ask about pods, deployments, services, events, logs. Scale, restart, apply manifests — with confirmation prompts for destructive operations.
-
-```
-> Show me pods that are using more than 80% of their memory limit
-> Why did the last deployment of auth-service fail?
-> Scale the worker deployment to 5 replicas
-```
-
-### 🐋 Docker
-Inspect containers, check resource usage, read logs, manage compose projects.
-
-```
-> Which container is using the most CPU?
-> Show me the logs from the postgres container in the last hour
-> What's different between the running config and the compose file?
-```
-
-### 📊 Prometheus
-Query metrics, check alerts, investigate anomalies — in natural language, no PromQL needed.
-
-```
-> Are there any firing alerts?
-> Show me the request latency trend for the API over the last 6 hours
-> What's the error rate for the payment service?
-```
-
-### 📁 Infrastructure Files
-Analyze Dockerfiles, Kubernetes YAML, docker-compose, Terraform — lint, validate, and get AI-powered improvement suggestions.
-
-```
-> Audit all Dockerfiles in this repo for security issues
-> Is my Terraform config following best practices?
-> Review the changes in my Kubernetes manifests before I apply them
-```
-
-## Architecture
-
-```
-                        ┌──────────────┐
-                        │  opsmate CLI │
-                        │   (Go bin)   │
-                        └──────┬───────┘
-                               │ manages
-               ┌───────────────┼───────────────┐
-               ▼               ▼               ▼
-        ┌────────────┐ ┌────────────┐ ┌────────────┐
-        │  K8s MCP   │ │ Docker MCP │ │  Prom MCP  │ ...
-        │  Server    │ │  Server    │ │  Server    │
-        └─────┬──────┘ └─────┬──────┘ └─────┬──────┘
-              │              │              │
-              ▼              ▼              ▼
-         K8s Cluster    Docker Host    Prometheus
-```
-
-Each MCP server runs as a subprocess with **stdio transport** — no network ports, no API keys, no attack surface. Claude Code discovers tools through the standard MCP protocol.
-
-## Safety
-
-opsmate is designed to be safe by default:
-
-- **`--readonly` mode** — disables all write operations (apply, scale, delete)
-- **Confirmation prompts** — destructive operations require explicit `y` confirmation
-- **Secret redaction** — passwords, tokens, and keys are masked in output
-- **Audit log** — all operations are logged to `~/.opsmate/audit.log`
-- **Namespace restrictions** — limit access to specific namespaces
-- **Max log lines** — prevents memory issues from huge log outputs
+| Feature | Description |
+|---------|-------------|
+| **Read-only mode** | `--readonly` disables apply, scale, delete, exec |
+| **Confirmation prompts** | Destructive ops require explicit approval |
+| **Secret redaction** | Passwords, tokens, keys masked in output |
+| **Namespace restrictions** | Limit K8s access to specific namespaces |
+| **Log limits** | Prevents OOM from massive log outputs |
+| **No network exposure** | MCP servers use stdio, not HTTP |
 
 ## Configuration
 
 <details>
-<summary>Full config reference</summary>
+<summary>~/.opsmate/config.yaml</summary>
 
 ```yaml
-# ~/.opsmate/config.yaml
-
 servers:
   kubernetes:
     enabled: true
@@ -192,10 +287,10 @@ servers:
   docker:
     enabled: true
     host: unix:///var/run/docker.sock
-    readonly: true
+    readonly: true                 # safe default
 
   prometheus:
-    enabled: true
+    enabled: false                 # enable when needed
     url: http://localhost:9090
 
   files:
@@ -218,40 +313,53 @@ claude:
 
 | | opsmate | kubectl + ChatGPT | k9s | Lens |
 |---|:---:|:---:|:---:|:---:|
-| AI-powered analysis | ✅ | Manual copy-paste | ❌ | ❌ |
-| Live cluster access | ✅ | ❌ | ✅ | ✅ |
-| Docker + Prometheus | ✅ | ❌ | ❌ | Plugin |
-| File linting | ✅ | ❌ | ❌ | ❌ |
-| Natural language | ✅ | ✅ | ❌ | ❌ |
-| Safety guardrails | ✅ | — | ⚠️ | ⚠️ |
-| Single binary | ✅ | — | ✅ | ❌ |
+| AI-powered analysis | **Yes** | Manual copy-paste | No | No |
+| Live cluster context | **Yes** | No | Yes | Yes |
+| Docker + Prometheus | **Yes** | No | No | Plugin |
+| Infrastructure linting | **Yes** | No | No | No |
+| Natural language | **Yes** | Yes | No | No |
+| Safety guardrails | **Yes** | -- | Partial | Partial |
+| Single binary | **Yes** | -- | Yes | No |
+| Open source | **MIT** | -- | Apache-2 | Freemium |
 
 ## Roadmap
 
-- [x] Kubernetes MCP server
-- [x] Docker MCP server
-- [x] Prometheus MCP server
-- [x] File analyzer with lint rules
-- [ ] Terraform MCP server
-- [ ] Ansible MCP server
+- [x] Kubernetes MCP server (11 tools)
+- [x] Docker MCP server (8 tools)
+- [x] Prometheus MCP server (7 tools)
+- [x] File analyzer with lint rules (4 tools)
+- [ ] Terraform MCP server (plan, apply, state)
+- [ ] Ansible MCP server (playbook, inventory)
 - [ ] `opsmate doctor` — diagnose environment issues
+- [ ] `opsmate init` — interactive setup wizard
 - [ ] Plugin system for custom MCP servers
 - [ ] Helm chart for in-cluster deployment
 - [ ] Grafana MCP server
-- [ ] CI/CD pipeline MCP (GitLab CI, GitHub Actions)
+- [ ] CI/CD pipeline MCP (GitHub Actions, GitLab CI)
 
 ## Contributing
 
-Contributions are welcome! See [CONTRIBUTING.md](docs/contributing.md) for guidelines.
+We love contributions! Whether it's a new MCP server, a lint rule, or a bug fix.
 
-The easiest way to contribute is to add new MCP servers or lint rules. Each MCP server is self-contained in its own package under `mcp/`.
+```bash
+git clone https://github.com/paffin/opsmate
+cd opsmate
+go build ./...
+go test ./...
+```
+
+Each MCP server is self-contained in `mcp/<name>/` with three files: `server.go`, `tools.go`, `handlers.go`. See [CONTRIBUTING.md](docs/contributing.md) for detailed guidelines.
 
 ## License
 
-[MIT](LICENSE) — use it however you want.
+[MIT](LICENSE)
 
 ---
 
 <p align="center">
-  <strong>If opsmate saves you time during an incident, consider giving it a ⭐</strong>
+  <sub>Built with <a href="https://github.com/mark3labs/mcp-go">mcp-go</a> and <a href="https://docs.anthropic.com/en/docs/claude-code">Claude Code</a></sub>
+</p>
+
+<p align="center">
+  <strong>If opsmate helps you during an incident, consider giving it a star</strong>
 </p>

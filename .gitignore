@@ -1,1 +1,30 @@
+# Binary
+opsmate
+opsmate.exe
+
+# Go
+vendor/
+*.test
+*.out
+coverage.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# opsmate runtime
+.mcp.json
+.omc/
+
+# Build
+dist/
+
+# Project spec (local only)
 project_spec.md

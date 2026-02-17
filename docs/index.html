@@ -584,6 +584,27 @@
             .cta-box { padding: 48px 24px; }
         }
 
+        /* Hero logo */
+        .hero-logo {
+            margin-bottom: 24px;
+        }
+        .hero-logo img {
+            filter: drop-shadow(0 0 40px rgba(56, 189, 248, 0.2));
+        }
+
+        /* Demo GIF */
+        .demo-wrapper {
+            max-width: 820px;
+            margin: 0 auto;
+        }
+        .demo-gif-container {
+            overflow: hidden;
+        }
+        .demo-gif {
+            width: 100%;
+            display: block;
+        }
+
         /* Animations */
         .fade-in {
             opacity: 0;
@@ -603,7 +624,10 @@
     <nav>
         <div class="container">
             <a href="#" class="nav-brand">
-                <img src="assets/logo.png" alt="opsmate">
+                <picture>
+                    <source media="(prefers-color-scheme: light)" srcset="assets/logo.png">
+                    <img src="assets/logo-dark.png" alt="opsmate" height="32">
+                </picture>
                 <span>opsmate</span>
             </a>
             <div class="nav-links">
@@ -621,6 +645,12 @@
     <!-- Hero -->
     <section class="hero">
         <div class="container">
+            <div class="hero-logo">
+                <picture>
+                    <source media="(prefers-color-scheme: light)" srcset="assets/logo.png">
+                    <img src="assets/logo-dark.png" alt="opsmate logo" width="120">
+                </picture>
+            </div>
             <div class="hero-badge">Open Source DevOps AI</div>
             <h1>
                 Give Claude Code<br>
@@ -662,38 +692,21 @@
         </div>
     </section>
 
-    <!-- Terminal Demo -->
+    <!-- Demo GIF -->
     <section class="terminal-section">
         <div class="container">
-            <div class="terminal fade-in">
-                <div class="terminal-bar">
-                    <div class="terminal-dot r"></div>
-                    <div class="terminal-dot y"></div>
-                    <div class="terminal-dot g"></div>
-                    <div class="terminal-title">opsmate &mdash; Terminal</div>
-                    <div style="width:52px"></div>
-                </div>
-                <div class="terminal-body">
-                    <div><span class="prompt-sign">$</span> <span class="cmd-text">opsmate</span></div>
-                    <br>
-                    <div class="output">&nbsp;&nbsp;opsmate &mdash; DevOps AI Assistant</div>
-                    <br>
-                    <div class="output">&nbsp;&nbsp;MCP Servers:</div>
-                    <div>&nbsp;&nbsp;<span class="success">&check;</span> <span class="output">kubernetes</span> <span class="dim">(context: production)</span></div>
-                    <div>&nbsp;&nbsp;<span class="success">&check;</span> <span class="output">docker</span> <span class="dim">(readonly)</span></div>
-                    <div>&nbsp;&nbsp;<span class="success">&check;</span> <span class="output">prometheus</span> <span class="dim">(http://prometheus:9090)</span></div>
-                    <div>&nbsp;&nbsp;<span class="success">&check;</span> <span class="output">file-analyzer</span></div>
-                    <br>
-                    <div class="output">&nbsp;&nbsp;Launching Claude Code with DevOps superpowers...</div>
-                    <br>
-                    <div><span class="prompt-sign">&gt;</span> <span class="ai-text">Why is pod nginx-7b5f9 crashing?</span></div>
-                    <br>
-                    <div>&nbsp;&nbsp;<span class="tool-call">[k8s_get_pods]</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="arrow">&rarr;</span> <span class="result">CrashLoopBackOff (7 restarts)</span></div>
-                    <div>&nbsp;&nbsp;<span class="tool-call">[k8s_get_pod_logs]</span> &nbsp;<span class="arrow">&rarr;</span> <span class="result">"Killed" &mdash; OOMKilled</span></div>
-                    <div>&nbsp;&nbsp;<span class="tool-call">[prom_query]</span> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="arrow">&rarr;</span> <span class="result">memory usage: ~240Mi (limit: 128Mi)</span></div>
-                    <br>
-                    <div class="ai-text">&nbsp;&nbsp;Root cause: Container exceeds 128Mi memory limit.</div>
-                    <div class="ai-text">&nbsp;&nbsp;Fix: <span style="color: var(--green)">kubectl set resources deploy/nginx --limits=memory=512Mi</span></div>
+            <div class="demo-wrapper fade-in">
+                <div class="terminal">
+                    <div class="terminal-bar">
+                        <div class="terminal-dot r"></div>
+                        <div class="terminal-dot y"></div>
+                        <div class="terminal-dot g"></div>
+                        <div class="terminal-title">opsmate &mdash; Demo</div>
+                        <div style="width:52px"></div>
+                    </div>
+                    <div class="demo-gif-container">
+                        <img src="assets/demo.gif" alt="opsmate demo — AI-powered DevOps in action" class="demo-gif" loading="lazy">
+                    </div>
                 </div>
             </div>
         </div>

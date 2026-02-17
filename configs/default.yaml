@@ -1,0 +1,42 @@
+# opsmate configuration
+# Copy to ~/.opsmate/config.yaml and customize
+
+servers:
+  kubernetes:
+    enabled: true
+    # kubeconfig: ~/.kube/config    # auto-detected
+    # context: production            # uses current if not set
+    # namespaces: []                 # empty = all namespaces
+    readonly: false
+
+  docker:
+    enabled: true
+    # host: unix:///var/run/docker.sock  # auto-detected
+    readonly: true
+
+  prometheus:
+    enabled: false
+    url: http://localhost:9090
+    # basicAuth:
+    #   username: admin
+    #   password: secret
+
+  files:
+    enabled: true
+    scan_paths:
+      - .
+    rulesets:
+      - dockerfile
+      - kubernetes
+      - compose
+      - terraform
+
+safety:
+  confirm_destructive: true
+  max_log_lines: 1000
+  redact_secrets: true
+
+claude:
+  model: claude-sonnet-4-20250514
+  # custom_prompt: |
+  #   Focus on security best practices
