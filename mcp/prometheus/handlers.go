@@ -344,7 +344,7 @@ func formatQueryResult(data json.RawMessage) string {
 		}
 		_, _ = fmt.Fprintf(&sb, "%s{%s}", name, strings.Join(labels, ", "))
 
-		if metric.Value != nil && len(metric.Value) == 2 {
+		if len(metric.Value) == 2 {
 			_, _ = fmt.Fprintf(&sb, " => %v\n", metric.Value[1])
 		} else if metric.Values != nil {
 			sb.WriteString(":\n")

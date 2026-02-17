@@ -24,10 +24,9 @@ type MCPConfig struct {
 
 // Manager manages MCP server configurations for Claude Code.
 type Manager struct {
-	cfg       *config.Config
-	binary    string // path to opsmate binary
-	configDir string
-	mu        sync.Mutex
+	cfg    *config.Config
+	binary string // path to opsmate binary
+	mu     sync.Mutex
 }
 
 // New creates a new MCP server manager.
