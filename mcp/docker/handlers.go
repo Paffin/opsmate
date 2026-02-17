@@ -42,7 +42,7 @@ func (h *handlers) ps(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "ID\tNAME\tIMAGE\tSTATUS\tPORTS\n")
+	_, _ = fmt.Fprintf(w, "ID\tNAME\tIMAGE\tSTATUS\tPORTS\n")
 
 	for _, c := range containers {
 		name := ""
@@ -50,10 +50,10 @@ func (h *handlers) ps(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTo
 			name = strings.TrimPrefix(c.Names[0], "/")
 		}
 		ports := formatPorts(c.Ports)
-		fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n",
 			c.ID[:12], name, c.Image, c.Status, ports)
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("%d containers:\n\n%s", len(containers), buf.String())
 }
@@ -80,7 +80,7 @@ func (h *handlers) logs(ctx context.Context, req mcp.CallToolRequest) (*mcp.Call
 	if err != nil {
 		return mcputil.ToolError("failed to get logs: %v", err)
 	}
-	defer reader.Close()
+	defer func() { _ = reader.Close() }()
 
 	logBytes, err := io.ReadAll(reader)
 	if err != nil {
@@ -105,34 +105,34 @@ func (h *handlers) inspect(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	}
 
 	var buf bytes.Buffer
-	fmt.Fprintf(&buf, "Container: %s (%s)\n", info.Name, info.ID[:12])
-	fmt.Fprintf(&buf, "Image: %s\n", info.Config.Image)
-	fmt.Fprintf(&buf, "Status: %s\n", info.State.Status)
-	fmt.Fprintf(&buf, "Started: %s\n", info.State.StartedAt)
-	fmt.Fprintf(&buf, "Platform: %s\n", info.Platform)
+	_, _ = fmt.Fprintf(&buf, "Container: %s (%s)\n", info.Name, info.ID[:12])
+	_, _ = fmt.Fprintf(&buf, "Image: %s\n", info.Config.Image)
+	_, _ = fmt.Fprintf(&buf, "Status: %s\n", info.State.Status)
+	_, _ = fmt.Fprintf(&buf, "Started: %s\n", info.State.StartedAt)
+	_, _ = fmt.Fprintf(&buf, "Platform: %s\n", info.Platform)
 
 	if info.State.Health != nil {
-		fmt.Fprintf(&buf, "Health: %s\n", info.State.Health.Status)
+		_, _ = fmt.Fprintf(&buf, "Health: %s\n", info.State.Health.Status)
 	}
 
-	fmt.Fprintf(&buf, "\nNetwork:\n")
+	_, _ = fmt.Fprintf(&buf, "\nNetwork:\n")
 	for name, net := range info.NetworkSettings.Networks {
-		fmt.Fprintf(&buf, "  %s: IP=%s\n", name, net.IPAddress)
+		_, _ = fmt.Fprintf(&buf, "  %s: IP=%s\n", name, net.IPAddress)
 	}
 
-	fmt.Fprintf(&buf, "\nMounts:\n")
+	_, _ = fmt.Fprintf(&buf, "\nMounts:\n")
 	for _, m := range info.Mounts {
-		fmt.Fprintf(&buf, "  %s → %s (%s)\n", m.Source, m.Destination, m.Type)
+		_, _ = fmt.Fprintf(&buf, "  %s → %s (%s)\n", m.Source, m.Destination, m.Type)
 	}
 
-	fmt.Fprintf(&buf, "\nEnvironment:\n")
+	_, _ = fmt.Fprintf(&buf, "\nEnvironment:\n")
 	for _, e := range info.Config.Env {
 		// Redact potential secrets
 		parts := strings.SplitN(e, "=", 2)
 		if len(parts) == 2 && isSecretEnv(parts[0]) {
-			fmt.Fprintf(&buf, "  %s=***REDACTED***\n", parts[0])
+			_, _ = fmt.Fprintf(&buf, "  %s=***REDACTED***\n", parts[0])
 		} else {
-			fmt.Fprintf(&buf, "  %s\n", e)
+			_, _ = fmt.Fprintf(&buf, "  %s\n", e)
 		}
 	}
 
@@ -154,7 +154,7 @@ func (h *handlers) stats(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "NAME\tCPU %%\tMEM USAGE\tMEM LIMIT\tMEM %%\n")
+	_, _ = fmt.Fprintf(w, "NAME\tCPU %%\tMEM USAGE\tMEM LIMIT\tMEM %%\n")
 
 	for _, c := range containers {
 		name := strings.TrimPrefix(c.Names[0], "/")
@@ -164,10 +164,10 @@ func (h *handlers) stats(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		}
 		var stats container.StatsResponse
 		if err := json.NewDecoder(statsResp.Body).Decode(&stats); err != nil {
-			statsResp.Body.Close()
+			_ = statsResp.Body.Close()
 			continue
 		}
-		statsResp.Body.Close()
+		_ = statsResp.Body.Close()
 
 		cpuPercent := calculateCPUPercent(&stats)
 		memUsage := float64(stats.MemoryStats.Usage) / 1024 / 1024
@@ -177,10 +177,10 @@ func (h *handlers) stats(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 			memPercent = (memUsage / memLimit) * 100
 		}
 
-		fmt.Fprintf(w, "%s\t%.2f%%\t%.1fMiB\t%.1fMiB\t%.1f%%\n",
+		_, _ = fmt.Fprintf(w, "%s\t%.2f%%\t%.1fMiB\t%.1fMiB\t%.1f%%\n",
 			name, cpuPercent, memUsage, memLimit, memPercent)
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("Container stats:\n\n%s", buf.String())
 }
@@ -190,7 +190,7 @@ func (h *handlers) singleContainerStats(ctx context.Context, containerID string)
 	if err != nil {
 		return mcputil.ToolError("failed to get stats: %v", err)
 	}
-	defer statsResp.Body.Close()
+	defer func() { _ = statsResp.Body.Close() }()
 
 	var stats container.StatsResponse
 	if err := json.NewDecoder(statsResp.Body).Decode(&stats); err != nil {
@@ -225,7 +225,7 @@ func (h *handlers) images(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "REPOSITORY\tTAG\tSIZE\n")
+	_, _ = fmt.Fprintf(w, "REPOSITORY\tTAG\tSIZE\n")
 
 	for _, img := range images {
 		for _, tag := range img.RepoTags {
@@ -236,10 +236,10 @@ func (h *handlers) images(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 				tagName = parts[1]
 			}
 			size := float64(img.Size) / 1024 / 1024
-			fmt.Fprintf(w, "%s\t%s\t%.1fMB\n", repo, tagName, size)
+			_, _ = fmt.Fprintf(w, "%s\t%s\t%.1fMB\n", repo, tagName, size)
 		}
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("%d images:\n\n%s", len(images), buf.String())
 }
@@ -262,14 +262,14 @@ func (h *handlers) composePS(ctx context.Context, req mcp.CallToolRequest) (*mcp
 
 	var buf bytes.Buffer
 	w := tabwriter.NewWriter(&buf, 0, 4, 2, ' ', 0)
-	fmt.Fprintf(w, "SERVICE\tSTATUS\tPORTS\n")
+	_, _ = fmt.Fprintf(w, "SERVICE\tSTATUS\tPORTS\n")
 
 	for _, c := range containers {
 		service := c.Labels["com.docker.compose.service"]
 		ports := formatPorts(c.Ports)
-		fmt.Fprintf(w, "%s\t%s\t%s\n", service, c.Status, ports)
+		_, _ = fmt.Fprintf(w, "%s\t%s\t%s\n", service, c.Status, ports)
 	}
-	w.Flush()
+	_ = w.Flush()
 
 	return mcputil.ToolText("Compose services (dir: %s):\n\n%s", projectDir, buf.String())
 }
@@ -303,8 +303,8 @@ func (h *handlers) composeLogs(ctx context.Context, req mcp.CallToolRequest) (*m
 			continue
 		}
 		logBytes, _ := io.ReadAll(reader)
-		reader.Close()
-		fmt.Fprintf(&buf, "=== %s ===\n%s\n\n", svc, cleanDockerLogs(logBytes))
+		_ = reader.Close()
+		_, _ = fmt.Fprintf(&buf, "=== %s ===\n%s\n\n", svc, cleanDockerLogs(logBytes))
 	}
 
 	return mcputil.ToolText("Compose logs:\n\n%s", buf.String())

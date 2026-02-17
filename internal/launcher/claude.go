@@ -128,9 +128,9 @@ func (l *Launcher) cleanupClaudeMD(path string) {
 		cleaned := content[:startIdx] + content[endIdx+len(markerEnd):]
 		cleaned = trimEmptyLines(cleaned)
 		if cleaned == "" {
-			os.Remove(path)
+			_ = os.Remove(path)
 		} else {
-			os.WriteFile(path, []byte(cleaned), 0644)
+			_ = os.WriteFile(path, []byte(cleaned), 0644)
 		}
 	}
 }

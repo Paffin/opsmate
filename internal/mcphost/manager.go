@@ -135,6 +135,6 @@ func (m *Manager) EnabledServers() []string {
 // Cleanup removes generated config files.
 func (m *Manager) Cleanup(dir string) {
 	mcpPath := filepath.Join(dir, ".mcp.json")
-	os.Remove(mcpPath)
+	_ = os.Remove(mcpPath)
 	log.Debug("Cleaned up MCP config", "path", mcpPath)
 }
