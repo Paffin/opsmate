@@ -1,6 +1,6 @@
-# Binary
-opsmate
-opsmate.exe
+# Binary (root only)
+/opsmate
+/opsmate.exe
 
 # Go
 vendor/
@@ -19,9 +19,14 @@ coverage.html
 .DS_Store
 Thumbs.db
 
+# Environment
+.env
+.env.*
+
 # opsmate runtime
 .mcp.json
 .omc/
+.playwright-mcp/
 
 # Build
 dist/

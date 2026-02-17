@@ -12,7 +12,7 @@ go test ./...
 ```
 
 Requirements:
-- Go 1.22+
+- Go 1.25+
 - (Optional) kubectl, docker, prometheus for integration testing
 
 ## Project Structure
