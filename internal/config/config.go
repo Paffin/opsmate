@@ -13,6 +13,11 @@ type Config struct {
 	Servers ServerConfigs `mapstructure:"servers" yaml:"servers"`
 	Safety  SafetyConfig  `mapstructure:"safety" yaml:"safety"`
 	Claude  ClaudeConfig  `mapstructure:"claude" yaml:"claude"`
+	Chat    ChatConfig    `mapstructure:"chat" yaml:"chat"`
+}
+
+type ChatConfig struct {
+	Port int `mapstructure:"port" yaml:"port"`
 }
 
 type ServerConfigs struct {
@@ -96,6 +101,9 @@ func DefaultConfig() *Config {
 		},
 		Claude: ClaudeConfig{
 			Model: "claude-sonnet-4-20250514",
+		},
+		Chat: ChatConfig{
+			Port: 3333,
 		},
 	}
 }

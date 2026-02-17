@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/log v0.4.2
 	github.com/docker/docker v28.5.2+incompatible
+	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674
 	github.com/mark3labs/mcp-go v0.44.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0

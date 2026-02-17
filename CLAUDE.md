@@ -18,6 +18,10 @@ go test -v ./internal/config/     # Test specific package
 - `internal/launcher/` — Claude Code process lifecycle
 - `internal/mcphost/` — MCP server config generation
 - `internal/context/` — Infrastructure context collector
+- `internal/chatui/` — Web Chat UI (WebSocket server + embedded frontend)
+  - `server.go` — HTTP/WebSocket server with gorilla/websocket
+  - `claude.go` — Claude Code process manager (stream-json parsing)
+  - `static/` — Embedded frontend (HTML/CSS/JS, Tokyo Night theme)
 - `mcp/kubernetes/` — K8s MCP server (client-go)
 - `mcp/docker/` — Docker MCP server (docker client)
 - `mcp/prometheus/` — Prometheus MCP server (HTTP API)

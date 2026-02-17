@@ -72,6 +72,29 @@ Recommended fix:
 Apply this fix? [y/N]
 ```
 
+## Chat UI
+
+opsmate includes a built-in web chat interface — your own ChatGPT-like UI powered by Claude Code under the hood. Uses your Claude Pro/Max subscription, not API keys.
+
+```bash
+$ opsmate chat
+  opsmate chat — Web Chat UI
+
+  Listening on http://localhost:8080
+```
+
+- Dark terminal-style theme (Tokyo Night)
+- Real-time streaming responses via WebSocket
+- Markdown rendering with syntax highlighting
+- Tool usage indicators (see when Claude uses MCP tools)
+- Multi-turn conversations with session persistence
+- `>` prompt — just like the terminal, but in your browser
+
+```bash
+opsmate chat              # Start on default port 8080
+opsmate chat --port 3333  # Custom port
+```
+
 ## Install
 
 ```bash
@@ -238,26 +261,37 @@ are consuming the most memory?
                         │    binary)       │
                         └────────┬─────────┘
                                  │
-                    generates .mcp.json + CLAUDE.md
-                    launches Claude Code
-                                 │
-               ┌─────────────────┼─────────────────┐
-               ▼                 ▼                 ▼
-        ┌────────────┐   ┌────────────┐   ┌────────────┐
-        │  K8s MCP   │   │ Docker MCP │   │  Prom MCP  │  ...
-        │  (stdio)   │   │  (stdio)   │   │  (stdio)   │
-        └──────┬─────┘   └──────┬─────┘   └──────┬─────┘
-               │                │                │
-               ▼                ▼                ▼
-          K8s Cluster      Docker Host      Prometheus
+                    ┌────────────┴────────────┐
+                    │                         │
+               opsmate (CLI mode)       opsmate chat (Web UI)
+               generates .mcp.json      WebSocket server +
+               launches Claude Code     embedded Chat UI
+                    │                         │
+               ┌────┴────────────────────┐    │
+               ▼         ▼              ▼    ▼
+        ┌──────────┐ ┌──────────┐ ┌──────────┐
+        │ K8s MCP  │ │Docker MCP│ │ Prom MCP │  ...
+        │ (stdio)  │ │ (stdio)  │ │ (stdio)  │
+        └────┬─────┘ └────┬─────┘ └────┬─────┘
+             ▼            ▼            ▼
+        K8s Cluster  Docker Host  Prometheus
 ```
 
-1. `opsmate` reads config from `~/.opsmate/config.yaml`
+**CLI mode** (`opsmate`):
+1. Reads config from `~/.opsmate/config.yaml`
 2. Generates `.mcp.json` pointing to `opsmate mcp <server>` subcommands
 3. Injects DevOps system prompt via `CLAUDE.md`
 4. Launches `claude` CLI — which spawns MCP servers as needed
 5. Each MCP server communicates over **stdio** — no ports, no API keys
 6. On exit — clean up `.mcp.json` and `CLAUDE.md` markers
+
+**Chat UI mode** (`opsmate chat`):
+1. Same MCP config generation as CLI mode
+2. Starts a local HTTP server with embedded web frontend
+3. Browser connects via WebSocket to the server
+4. Each message runs `claude -p --output-format stream-json` with MCP config
+5. Responses stream back in real-time through the WebSocket
+6. Session IDs enable multi-turn conversations via `--resume`
 
 ## Safety First
 
@@ -328,6 +362,7 @@ claude:
 - [x] Docker MCP server (8 tools)
 - [x] Prometheus MCP server (7 tools)
 - [x] File analyzer with lint rules (4 tools)
+- [x] Web Chat UI with streaming responses
 - [ ] Terraform MCP server (plan, apply, state)
 - [ ] Ansible MCP server (playbook, inventory)
 - [ ] `opsmate doctor` — diagnose environment issues

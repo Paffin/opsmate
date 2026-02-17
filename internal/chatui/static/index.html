@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>opsmate</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/tokyo-night-dark.min.css" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <span class="logo">opsmate</span>
+    <span class="status-dot" id="statusDot" title="Disconnected"></span>
+  </header>
+
+  <main class="messages-container" id="messagesContainer">
+    <div class="welcome-message" id="welcomeMessage">
+      <p class="welcome-text">Ask anything about your infrastructure...</p>
+    </div>
+  </main>
+
+  <div class="typing-indicator" id="typingIndicator">
+    <span></span><span></span><span></span>
+  </div>
+
+  <footer class="input-area">
+    <div class="input-wrapper">
+      <span class="prompt-symbol">&gt;</span>
+      <textarea
+        id="messageInput"
+        class="message-input"
+        placeholder="Type a message..."
+        rows="1"
+        autofocus
+      ></textarea>
+      <button class="send-btn" id="sendBtn" title="Send (Enter)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
+    <div class="input-hint">Enter to send &middot; Shift+Enter for newline</div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
