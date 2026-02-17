@@ -40,7 +40,3 @@ claude:
   model: claude-sonnet-4-20250514
   # custom_prompt: |
   #   Focus on security best practices
-
-# Chat UI settings (opsmate chat)
-chat:
-  port: 3333                    # HTTP port for web chat interface

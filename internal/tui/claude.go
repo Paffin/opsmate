@@ -1,4 +1,4 @@
-package chatui
+package tui
 
 import (
 	"bufio"
@@ -52,7 +52,7 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 
 	go func() {
 		defer close(ch)
-		defer cmd.Wait()
+		defer cmd.Wait() //nolint:errcheck
 
 		scanner := bufio.NewScanner(stdout)
 		// Increase scanner buffer for large JSON lines
@@ -74,11 +74,8 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 			if resultRaw, ok := raw["result"]; ok {
 				var resultStr string
 				if err := json.Unmarshal(resultRaw, &resultStr); err == nil && resultStr != "" {
-					// Extract session_id if present
 					sid := extractSessionID(raw)
-					if resultStr != "" {
-						ch <- StreamEvent{Type: "assistant_chunk", Content: resultStr}
-					}
+					ch <- StreamEvent{Type: "assistant_chunk", Content: resultStr}
 					ch <- StreamEvent{Type: "message_end", SessionID: sid}
 					continue
 				}
@@ -96,16 +93,13 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 
 			switch eventType {
 			case "assistant":
-				// Has content array
 				events := extractTextFromContent(raw)
 				for _, e := range events {
 					ch <- e
 				}
 
 			case "result":
-				// Final result event
 				sid := extractSessionID(raw)
-				// Try to get result text
 				if resultRaw, ok := raw["result"]; ok {
 					var resultStr string
 					if err := json.Unmarshal(resultRaw, &resultStr); err == nil && resultStr != "" {
@@ -115,7 +109,6 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 				ch <- StreamEvent{Type: "message_end", SessionID: sid}
 
 			default:
-				// Try to find text_delta in nested event structure
 				if eventRaw, ok := raw["event"]; ok {
 					var nested map[string]json.RawMessage
 					if err := json.Unmarshal(eventRaw, &nested); err == nil {
@@ -202,15 +195,10 @@ func extractTextFromContent(raw map[string]json.RawMessage) []StreamEvent {
 			}
 		case "tool_use":
 			toolName := ""
-			toolInput := ""
 			if nameRaw, ok := block["name"]; ok {
-				json.Unmarshal(nameRaw, &toolName)
+				json.Unmarshal(nameRaw, &toolName) //nolint:errcheck
 			}
-			if inputRaw, ok := block["input"]; ok {
-				// Serialize input back to string for display
-				toolInput = string(inputRaw)
-			}
-			events = append(events, StreamEvent{Type: "tool_use", Tool: toolName, Input: toolInput})
+			events = append(events, StreamEvent{Type: "tool_use", Tool: toolName})
 		}
 	}
 

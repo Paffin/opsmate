@@ -13,22 +13,17 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/paffin/opsmate/releases"><img src="https://img.shields.io/github/v/release/paffin/opsmate?style=flat-square&color=00ADD8" alt="Release"></a>
   <a href="https://github.com/paffin/opsmate/actions"><img src="https://img.shields.io/github/actions/workflow/status/paffin/opsmate/ci.yml?style=flat-square" alt="CI"></a>
-  <a href="https://goreportcard.com/report/github.com/paffin/opsmate"><img src="https://goreportcard.com/badge/github.com/paffin/opsmate?style=flat-square" alt="Go Report"></a>
+  <a href="https://github.com/paffin/opsmate/releases/latest"><img src="https://img.shields.io/github/v/release/paffin/opsmate?style=flat-square" alt="Release"></a>
+  <a href="https://goreportcard.com/report/github.com/paffin/opsmate"><img src="https://goreportcard.com/badge/github.com/paffin/opsmate?style=flat-square" alt="Go Report Card"></a>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square" alt="License"></a>
+  <a href="https://img.shields.io/badge/go-1.25-00ADD8?style=flat-square"><img src="https://img.shields.io/badge/go-1.25-00ADD8?style=flat-square" alt="Go 1.25"></a>
   <a href="https://github.com/paffin/opsmate/stargazers"><img src="https://img.shields.io/github/stars/paffin/opsmate?style=flat-square&color=yellow" alt="Stars"></a>
 </p>
 
 <p align="center">
   <code>opsmate</code> launches <a href="https://modelcontextprotocol.io/">MCP servers</a> that connect Claude Code directly to Kubernetes, Docker, Prometheus, and your infra files.<br>
   <strong>30 DevOps tools. Zero copy-paste. Single binary.</strong>
-</p>
-
-<br>
-
-<p align="center">
-  <img src="docs/assets/demo.gif" alt="opsmate demo" width="720" />
 </p>
 
 <br>
@@ -49,7 +44,7 @@ $ opsmate
   ✔ prometheus (http://prometheus:9090)
   ✔ file-analyzer
 
-  Launching Claude Code with DevOps superpowers...
+  Launching TUI...
 ```
 
 Then just ask:
@@ -57,43 +52,24 @@ Then just ask:
 ```
 > Why is pod nginx-7b5f9 crashing?
 
-I'll investigate the pod failure.
+[k8s_get_pods] [k8s_get_pod_logs] [k8s_describe] [prom_query]
 
-[k8s_get_pods]      → nginx-7b5f9: CrashLoopBackOff (7 restarts)
-[k8s_get_pod_logs]  → "Killed" — OOMKilled
-[k8s_describe]      → limits.memory: 128Mi
-[prom_query]        → container_memory_usage: ~240Mi
-
-Root cause: The container exceeds its 128Mi memory limit.
+Root cause: The container exceeds its 128Mi memory limit (~240Mi actual).
 
 Recommended fix:
   kubectl set resources deployment/nginx --limits=memory=512Mi
-
-Apply this fix? [y/N]
 ```
 
-## Chat UI
+## Terminal UI
 
-opsmate includes a built-in web chat interface — your own ChatGPT-like UI powered by Claude Code under the hood. Uses your Claude Pro/Max subscription, not API keys.
+opsmate launches a native terminal interface (TUI) built with [bubbletea](https://github.com/charmbracelet/bubbletea). Claude Code runs under the hood — you get streaming responses, tool-use indicators, and multi-turn conversations right in your terminal.
 
-```bash
-$ opsmate chat
-  opsmate chat — Web Chat UI
-
-  Listening on http://localhost:8080
-```
-
-- Dark terminal-style theme (Tokyo Night)
-- Real-time streaming responses via WebSocket
-- Markdown rendering with syntax highlighting
-- Tool usage indicators (see when Claude uses MCP tools)
+- Dark minimal interface (Tokyo Night palette)
+- Real-time streaming from Claude Code
+- Tool usage indicators (`[k8s_get_pods]`, `[prom_query]`, etc.)
 - Multi-turn conversations with session persistence
-- `>` prompt — just like the terminal, but in your browser
-
-```bash
-opsmate chat              # Start on default port 8080
-opsmate chat --port 3333  # Custom port
-```
+- `>` prompt — type and press Enter
+- `Esc` to cancel, `Ctrl+C` to exit
 
 ## Install
 
@@ -255,43 +231,33 @@ are consuming the most memory?
 ## How It Works
 
 ```
-                        ┌──────────────────┐
-                        │   opsmate CLI    │
-                        │   (single Go     │
-                        │    binary)       │
-                        └────────┬─────────┘
-                                 │
-                    ┌────────────┴────────────┐
-                    │                         │
-               opsmate (CLI mode)       opsmate chat (Web UI)
-               generates .mcp.json      WebSocket server +
-               launches Claude Code     embedded Chat UI
-                    │                         │
-               ┌────┴────────────────────┐    │
-               ▼         ▼              ▼    ▼
-        ┌──────────┐ ┌──────────┐ ┌──────────┐
-        │ K8s MCP  │ │Docker MCP│ │ Prom MCP │  ...
-        │ (stdio)  │ │ (stdio)  │ │ (stdio)  │
-        └────┬─────┘ └────┬─────┘ └────┬─────┘
-             ▼            ▼            ▼
-        K8s Cluster  Docker Host  Prometheus
+                    ┌──────────────────────┐
+                    │    opsmate CLI       │
+                    │   (single Go binary) │
+                    └──────────┬───────────┘
+                               │
+                    ┌──────────┴───────────┐
+                    │  TUI (bubbletea)     │
+                    │  streams from Claude  │
+                    └──────────┬───────────┘
+                               │
+               ┌───────────────┼───────────────┐
+               ▼               ▼               ▼
+        ┌──────────┐    ┌──────────┐    ┌──────────┐
+        │ K8s MCP  │    │Docker MCP│    │ Prom MCP │  ...
+        │ (stdio)  │    │ (stdio)  │    │ (stdio)  │
+        └────┬─────┘    └────┬─────┘    └────┬─────┘
+             ▼               ▼               ▼
+        K8s Cluster     Docker Host     Prometheus
 ```
 
-**CLI mode** (`opsmate`):
 1. Reads config from `~/.opsmate/config.yaml`
 2. Generates `.mcp.json` pointing to `opsmate mcp <server>` subcommands
 3. Injects DevOps system prompt via `CLAUDE.md`
-4. Launches `claude` CLI — which spawns MCP servers as needed
+4. Launches a native TUI that streams from `claude -p --output-format stream-json`
 5. Each MCP server communicates over **stdio** — no ports, no API keys
-6. On exit — clean up `.mcp.json` and `CLAUDE.md` markers
-
-**Chat UI mode** (`opsmate chat`):
-1. Same MCP config generation as CLI mode
-2. Starts a local HTTP server with embedded web frontend
-3. Browser connects via WebSocket to the server
-4. Each message runs `claude -p --output-format stream-json` with MCP config
-5. Responses stream back in real-time through the WebSocket
 6. Session IDs enable multi-turn conversations via `--resume`
+7. On exit — clean up `.mcp.json` and `CLAUDE.md` markers
 
 ## Safety First
 
@@ -339,6 +305,8 @@ safety:
 
 claude:
   model: claude-sonnet-4-20250514
+  # custom_prompt: |
+  #   Focus on security best practices
 ```
 
 </details>
@@ -362,7 +330,7 @@ claude:
 - [x] Docker MCP server (8 tools)
 - [x] Prometheus MCP server (7 tools)
 - [x] File analyzer with lint rules (4 tools)
-- [x] Web Chat UI with streaming responses
+- [x] Native TUI with streaming responses (bubbletea)
 - [ ] Terraform MCP server (plan, apply, state)
 - [ ] Ansible MCP server (playbook, inventory)
 - [ ] `opsmate doctor` — diagnose environment issues

@@ -28,8 +28,9 @@ func New(cfg *config.Config, workDir string) *Launcher {
 	}
 }
 
-// Launch starts Claude Code with MCP configuration.
-func (l *Launcher) Launch() error {
+// Setup generates MCP config and CLAUDE.md without launching Claude.
+// Returns the MCP config path, enabled servers, and a cleanup function.
+func (l *Launcher) Setup() (mcpConfigPath string, servers []string, cleanup func(), err error) {
 	// 1. Collect infrastructure context
 	log.Info("Collecting infrastructure context...")
 	ctx := infractx.Collect(l.cfg)
@@ -39,25 +40,33 @@ func (l *Launcher) Launch() error {
 	log.Info("Generating MCP configuration...")
 	mcpPath, err := l.manager.GenerateMCPConfig(l.workDir)
 	if err != nil {
-		return fmt.Errorf("generate mcp config: %w", err)
+		return "", nil, nil, fmt.Errorf("generate mcp config: %w", err)
 	}
-	defer l.manager.Cleanup(l.workDir)
 
 	// 3. Generate CLAUDE.md
 	log.Info("Generating DevOps system prompt...")
 	claudeMDPath, err := l.generateClaudeMD(ctx)
 	if err != nil {
-		return fmt.Errorf("generate CLAUDE.md: %w", err)
+		l.manager.Cleanup(l.workDir)
+		return "", nil, nil, fmt.Errorf("generate CLAUDE.md: %w", err)
 	}
-	defer l.cleanupClaudeMD(claudeMDPath)
 
-	// 4. Launch Claude Code
-	servers := l.manager.EnabledServers()
-	log.Info("Launching Claude Code with DevOps superpowers",
-		"servers", servers,
-		"mcp_config", mcpPath,
-	)
+	servers = l.manager.EnabledServers()
+	cleanup = func() {
+		l.manager.Cleanup(l.workDir)
+		l.cleanupClaudeMD(claudeMDPath)
+	}
 
+	return mcpPath, servers, cleanup, nil
+}
+
+// Launch starts Claude Code with MCP configuration.
+func (l *Launcher) Launch() error {
+	_, _, cleanup, err := l.Setup()
+	if err != nil {
+		return err
+	}
+	defer cleanup()
 	return l.runClaude()
 }
 
