@@ -13,20 +13,12 @@ import (
 	k8smcp "github.com/paffin/opsmate/mcp/kubernetes"
 	prommcp "github.com/paffin/opsmate/mcp/prometheus"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
 
 var (
-	cfgFile    string
-	version    = "dev"
-	titleStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("39"))
-	successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("42"))
-	serverStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214"))
+	cfgFile string
+	version = "dev"
 )
 
 func main() {
@@ -66,47 +58,40 @@ func runRoot(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("load config: %w", err)
 	}
 
-	// Print banner
-	fmt.Println(titleStyle.Render("  opsmate — DevOps AI Assistant"))
-	fmt.Println()
-
-	// Show enabled servers
-	fmt.Println("  MCP Servers:")
+	// Build server description list for the banner
+	var serverDescs []string
 	if cfg.Servers.Kubernetes.Enabled {
-		ctx := ""
+		desc := "kubernetes"
 		if cfg.Servers.Kubernetes.Context != "" {
-			ctx = fmt.Sprintf(" (context: %s)", cfg.Servers.Kubernetes.Context)
+			desc += fmt.Sprintf(" (context: %s)", cfg.Servers.Kubernetes.Context)
 		}
-		fmt.Printf("  %s kubernetes%s\n", successStyle.Render("✔"), ctx)
+		serverDescs = append(serverDescs, desc)
 	}
 	if cfg.Servers.Docker.Enabled {
-		mode := ""
+		desc := "docker"
 		if cfg.Servers.Docker.ReadOnly {
-			mode = " (readonly)"
+			desc += " (readonly)"
 		}
-		fmt.Printf("  %s docker%s\n", successStyle.Render("✔"), mode)
+		serverDescs = append(serverDescs, desc)
 	}
 	if cfg.Servers.Prometheus.Enabled {
-		fmt.Printf("  %s prometheus (%s)\n", successStyle.Render("✔"), cfg.Servers.Prometheus.URL)
+		serverDescs = append(serverDescs, fmt.Sprintf("prometheus (%s)", cfg.Servers.Prometheus.URL))
 	}
 	if cfg.Servers.Files.Enabled {
-		fmt.Printf("  %s file-analyzer\n", successStyle.Render("✔"))
+		serverDescs = append(serverDescs, "file-analyzer")
 	}
-	fmt.Println()
 
 	// Setup MCP config and CLAUDE.md
 	workDir, _ := os.Getwd()
 	l := launcher.New(cfg, workDir)
-	mcpConfigPath, servers, cleanup, err := l.Setup()
+	mcpConfigPath, _, cleanup, err := l.Setup()
 	if err != nil {
 		return err
 	}
 	defer cleanup()
 
-	fmt.Println(serverStyle.Render("  Launching TUI..."))
-	fmt.Println()
-
-	return tui.Run(mcpConfigPath, workDir, servers)
+	// Run TUI with banner — banner is printed inside tui.Run
+	return tui.Run(mcpConfigPath, workDir, serverDescs)
 }
 
 func statusCmd() *cobra.Command {
@@ -120,7 +105,7 @@ func statusCmd() *cobra.Command {
 			}
 
 			ctx := infractx.Collect(cfg)
-			fmt.Println(titleStyle.Render("  opsmate status"))
+			fmt.Println("  opsmate status")
 			fmt.Println()
 			fmt.Printf("  %s\n", ctx.Summary())
 			return nil

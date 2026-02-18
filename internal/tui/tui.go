@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -154,7 +153,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.viewport.SetContent(m.content.String())
 			m.viewport.GotoBottom()
 		case "tool_use":
-			m.content.WriteString(toolStyle.Render("["+event.Tool+"]") + " ")
+			m.content.WriteString("\n" + toolStyle.Render("  ["+event.Tool+"]") + "\n")
 			m.viewport.SetContent(m.content.String())
 			m.viewport.GotoBottom()
 		case "message_end":
@@ -228,19 +227,16 @@ func waitForEvent(ch <-chan StreamEvent) tea.Cmd {
 	}
 }
 
-// Run starts the TUI application.
+// Run starts the TUI application in REPL mode (terminal-native scrolling).
 func Run(mcpConfigPath, workDir string, servers []string) error {
+	PrintBanner(servers)
+	return RunREPL(mcpConfigPath, workDir, servers)
+}
+
+// RunAltScreen starts the TUI in full-screen alt-screen mode (legacy).
+func RunAltScreen(mcpConfigPath, workDir string, servers []string) error {
 	m := newModel(mcpConfigPath, workDir, servers)
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
-}
-
-// RunWithOutput starts the TUI and prints final output info.
-func RunWithOutput(mcpConfigPath, workDir string, servers []string) error {
-	err := Run(mcpConfigPath, workDir, servers)
-	if err != nil {
-		return fmt.Errorf("tui: %w", err)
-	}
-	return nil
 }

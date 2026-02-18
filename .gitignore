@@ -1,12 +1,17 @@
 # Binary (root only)
 /opsmate
 /opsmate.exe
+/opsmate-test.exe
 
 # Go
 vendor/
 *.test
 *.out
 coverage.html
+
+# Claude logs
+claude-stderr.log
+claude-stdout.log
 
 # IDE
 .vscode/
