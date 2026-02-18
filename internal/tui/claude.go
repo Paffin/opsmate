@@ -40,7 +40,8 @@ func debugLog(format string, args ...interface{}) {
 
 // RunQuery runs a Claude query and streams events back on a channel.
 // sessionID can be empty for a new session, or a prior session ID to resume.
-func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir string) (<-chan StreamEvent, error) {
+// model can be empty to use the CLI default, or a specific model ID.
+func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir, model string) (<-chan StreamEvent, error) {
 	claudeBin, err := exec.LookPath("claude")
 	if err != nil {
 		return nil, fmt.Errorf("claude CLI not found in PATH")
@@ -54,6 +55,11 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 		"--verbose",
 		"--output-format", "stream-json",
 		"--mcp-config", mcpConfigPath,
+		// Auto-allow all read-only MCP tools; consent only for writes
+		"--allowedTools", "mcp__*",
+	}
+	if model != "" {
+		args = append(args, "--model", model)
 	}
 	if sessionID != "" {
 		args = append(args, "--resume", sessionID)

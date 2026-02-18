@@ -19,6 +19,7 @@ import (
 var (
 	cfgFile  string
 	readOnly bool
+	modelArg string
 	version  = "dev"
 )
 
@@ -33,6 +34,7 @@ func main() {
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: ~/.opsmate/config.yaml)")
 	rootCmd.Flags().BoolVar(&readOnly, "readonly", false, "read-only mode: disables apply, scale, delete, exec")
+	rootCmd.Flags().StringVar(&modelArg, "model", "", "Claude model override (haiku/sonnet/opus or full model ID)")
 
 	// MCP subcommands (used internally by .mcp.json)
 	mcpCmd := &cobra.Command{
@@ -97,6 +99,11 @@ func runRoot(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	defer cleanup()
+
+	// Set model override if provided via --model flag
+	if modelArg != "" {
+		tui.ModelOverride = resolveModelAlias(modelArg)
+	}
 
 	// Run TUI with banner — banner is printed inside tui.Run
 	return tui.Run(mcpConfigPath, workDir, serverDescs)
@@ -203,6 +210,20 @@ func mcpPrometheusCmd() *cobra.Command {
 	cmd.Flags().StringVar(&password, "password", "", "Basic auth password")
 
 	return cmd
+}
+
+// resolveModelAlias maps short aliases to full model IDs.
+func resolveModelAlias(m string) string {
+	switch m {
+	case "haiku", "fast":
+		return tui.ModelFast
+	case "sonnet", "default":
+		return tui.ModelDefault
+	case "opus", "deep":
+		return tui.ModelDeep
+	default:
+		return m // assume full model ID
+	}
 }
 
 func mcpFilesCmd() *cobra.Command {

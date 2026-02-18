@@ -114,7 +114,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			ctx, cancel := context.WithCancel(context.Background())
 			m.cancel = cancel
 
-			ch, err := RunQuery(ctx, query, m.sessionID, m.mcpConfig, m.workDir)
+			model := ModelOverride
+			if model == "" {
+				model = RouteModel(query)
+			}
+			ch, err := RunQuery(ctx, query, m.sessionID, m.mcpConfig, m.workDir, model)
 			if err != nil {
 				m.content.WriteString(errorStyle.Render("Error: "+err.Error()) + "\n\n")
 				m.viewport.SetContent(m.content.String())
@@ -226,6 +230,10 @@ func waitForEvent(ch <-chan StreamEvent) tea.Cmd {
 		return streamEventMsg(event)
 	}
 }
+
+// ModelOverride is set externally to force a specific model for all queries.
+// When empty, automatic model routing is used.
+var ModelOverride string
 
 // Run starts the TUI application in REPL mode (terminal-native scrolling).
 func Run(mcpConfigPath, workDir string, servers []string) error {

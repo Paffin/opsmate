@@ -38,6 +38,16 @@ func RunREPL(mcpConfigPath, workDir string, servers []string) error {
 
 		_, _ = fmt.Fprintln(os.Stdout)
 
+		// Route model: override takes precedence, otherwise auto-detect
+		model := ModelOverride
+		if model == "" {
+			model = RouteModel(query)
+		}
+		modelLabel := modelTag(model)
+		if modelLabel != "" {
+			_, _ = fmt.Fprintln(os.Stdout, modelLabel)
+		}
+
 		// Create cancellable context for streaming
 		ctx, cancel := context.WithCancel(context.Background())
 
@@ -52,7 +62,7 @@ func RunREPL(mcpConfigPath, workDir string, servers []string) error {
 			}
 		}()
 
-		ch, err := RunQuery(ctx, query, sessionID, mcpConfigPath, workDir)
+		ch, err := RunQuery(ctx, query, sessionID, mcpConfigPath, workDir, model)
 		if err != nil {
 			_, _ = fmt.Fprintln(os.Stdout, errorStyle.Render("Error: "+err.Error()))
 			_, _ = fmt.Fprintln(os.Stdout)
@@ -61,25 +71,38 @@ func RunREPL(mcpConfigPath, workDir string, servers []string) error {
 			continue
 		}
 
+		// Accumulate response for markdown rendering
+		var responseBuf strings.Builder
+		var toolCalls []string
 		cancelled := false
+
 		for event := range ch {
 			switch event.Type {
 			case "assistant_chunk":
-				_, _ = fmt.Fprint(os.Stdout, event.Content)
+				responseBuf.WriteString(event.Content)
 
 			case "tool_use":
-				_, _ = fmt.Fprintln(os.Stdout)
-				_, _ = fmt.Fprintln(os.Stdout, toolStyle.Render("  ["+event.Tool+"]"))
+				toolCalls = append(toolCalls, event.Tool)
+				_, _ = fmt.Fprint(os.Stdout, toolStyle.Render("  ▸ "+formatToolName(event.Tool))+"\n")
 
 			case "message_end":
 				if event.SessionID != "" {
 					sessionID = event.SessionID
 				}
-				_, _ = fmt.Fprintln(os.Stdout)
+				// Render accumulated markdown
+				raw := responseBuf.String()
+				if strings.TrimSpace(raw) != "" {
+					rendered := renderMarkdown(raw)
+					_, _ = fmt.Fprint(os.Stdout, rendered)
+				}
 				_, _ = fmt.Fprintln(os.Stdout)
 
 			case "error":
-				_, _ = fmt.Fprintln(os.Stdout)
+				// Flush any partial content first
+				if partial := responseBuf.String(); strings.TrimSpace(partial) != "" {
+					_, _ = fmt.Fprint(os.Stdout, partial)
+					_, _ = fmt.Fprintln(os.Stdout)
+				}
 				_, _ = fmt.Fprintln(os.Stdout, errorStyle.Render("Error: "+event.Content))
 				_, _ = fmt.Fprintln(os.Stdout)
 			}
@@ -111,4 +134,32 @@ func PrintBanner(servers []string) {
 	_, _ = fmt.Fprintln(os.Stdout)
 	_, _ = fmt.Fprintln(os.Stdout, "  "+dimStyle.Render("Launching Claude Code with DevOps superpowers..."))
 	_, _ = fmt.Fprintln(os.Stdout)
+}
+
+// formatToolName makes MCP tool names human-readable.
+// "mcp_docker__docker_ps" -> "docker: ps"
+// "Bash" -> "bash"
+func formatToolName(name string) string {
+	// MCP tool pattern: mcp_{server}__{tool}
+	if strings.HasPrefix(name, "mcp_") || strings.HasPrefix(name, "mcp__") {
+		parts := strings.SplitN(name, "__", 2)
+		if len(parts) == 2 {
+			server := strings.TrimPrefix(parts[0], "mcp_")
+			tool := parts[1]
+			return server + ": " + tool
+		}
+	}
+	return strings.ToLower(name)
+}
+
+// modelTag returns a styled label showing which model tier is being used.
+func modelTag(model string) string {
+	switch model {
+	case ModelFast:
+		return dimStyle.Render("  ⚡ haiku (fast)")
+	case ModelDeep:
+		return dimStyle.Render("  🧠 opus (deep)")
+	default:
+		return "" // don't clutter output for default model
+	}
 }
