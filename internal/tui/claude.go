@@ -2,10 +2,14 @@ package tui
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
+	"os"
 	"os/exec"
+	"strings"
 )
 
 // StreamEvent represents a single streamed event from the Claude process.
@@ -15,6 +19,21 @@ type StreamEvent struct {
 	Tool      string
 	Input     string
 	SessionID string
+}
+
+// debugLog writes to OPSMATE_DEBUG log file when set.
+func debugLog(format string, args ...interface{}) {
+	path := os.Getenv("OPSMATE_DEBUG")
+	if path == "" {
+		return
+	}
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return
+	}
+	defer f.Close() //nolint:errcheck
+	logger := log.New(f, "", log.LstdFlags)
+	logger.Printf(format, args...)
 }
 
 // RunQuery runs a Claude query and streams events back on a channel.
@@ -29,13 +48,14 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 		"-p",
 		"--output-format", "stream-json",
 		"--verbose",
-		"--include-partial-messages",
 		"--mcp-config", mcpConfigPath,
 	}
 	if sessionID != "" {
 		args = append(args, "--resume", sessionID)
 	}
 	args = append(args, prompt)
+
+	debugLog("Running: %s %s", claudeBin, strings.Join(args, " "))
 
 	cmd := exec.CommandContext(ctx, claudeBin, args...)
 	cmd.Dir = workDir
@@ -45,6 +65,10 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 		return nil, fmt.Errorf("create stdout pipe: %w", err)
 	}
 
+	// Capture stderr to report errors
+	var stderrBuf bytes.Buffer
+	cmd.Stderr = &stderrBuf
+
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start claude process: %w", err)
 	}
@@ -53,95 +77,190 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 
 	go func() {
 		defer close(ch)
-		defer cmd.Wait() //nolint:errcheck
 
 		scanner := bufio.NewScanner(stdout)
 		// Increase scanner buffer for large JSON lines
 		buf := make([]byte, 1024*1024)
 		scanner.Buffer(buf, len(buf))
 
-		// Track content sources to avoid duplication.
-		// hasStreamedContent: true when stream_event deltas were received (real-time).
-		// hasAnyContent: true when any text was shown (from streaming or assistant events).
-		hasStreamedContent := false
-		hasAnyContent := false
+		lineCount := 0
+		eventCount := 0
 
 		for scanner.Scan() {
 			line := scanner.Text()
+			lineCount++
+			debugLog("LINE %d: %s", lineCount, line)
+
 			if line == "" {
 				continue
 			}
 
 			var raw map[string]json.RawMessage
 			if err := json.Unmarshal([]byte(line), &raw); err != nil {
+				debugLog("JSON parse error: %v (line: %s)", err, line)
 				continue
 			}
 
 			// Get type field
 			typeRaw, hasType := raw["type"]
 			if !hasType {
+				debugLog("No 'type' field in: %s", line)
 				continue
 			}
 			var eventType string
 			if err := json.Unmarshal(typeRaw, &eventType); err != nil {
+				debugLog("Type unmarshal error: %v", err)
 				continue
 			}
 
+			debugLog("Event type: %s", eventType)
+
 			switch eventType {
+			case "content_block_delta":
+				// Direct content_block_delta (without stream_event wrapper)
+				processContentBlockDelta(raw, ch)
+				eventCount++
+
+			case "content_block_start":
+				// Direct content_block_start
+				processContentBlockStart(raw, ch)
+				eventCount++
+
+			case "message_start", "message_delta", "message_stop":
+				// Message lifecycle events — ignore
+				eventCount++
+
+			case "content_block_stop":
+				// Content block ended — ignore
+				eventCount++
+
 			case "stream_event":
-				// Real-time streaming deltas from --include-partial-messages
+				// Wrapped stream events (older format)
 				processStreamEvent(raw, ch)
-				hasStreamedContent = true
-				hasAnyContent = true
+				eventCount++
 
 			case "assistant":
-				// Complete assistant message (verbose turn output).
-				// Only extract text if we haven't received streaming deltas,
-				// otherwise we'd duplicate the text.
-				if !hasStreamedContent {
-					events := extractFromAssistant(raw)
-					for _, e := range events {
-						ch <- e
-					}
-					hasAnyContent = true
-				} else {
-					// Still extract tool_use events in case streaming missed them
-					events := extractToolUseFromAssistant(raw)
-					for _, e := range events {
-						ch <- e
-					}
+				// Complete assistant message (verbose turn output)
+				events := extractFromAssistant(raw)
+				for _, e := range events {
+					ch <- e
 				}
-				// Reset streaming flag for the next turn
-				hasStreamedContent = false
+				eventCount++
 
 			case "result":
 				sid := extractSessionID(raw)
-				if !hasStreamedContent && !hasAnyContent {
-					// Last resort: no content from streaming or assistant events.
-					// Show the result text directly.
-					if resultRaw, ok := raw["result"]; ok {
-						var resultStr string
-						if err := json.Unmarshal(resultRaw, &resultStr); err == nil && resultStr != "" {
+				// Always try to extract result text as fallback
+				if resultRaw, ok := raw["result"]; ok {
+					var resultStr string
+					if err := json.Unmarshal(resultRaw, &resultStr); err == nil && resultStr != "" {
+						// Only show if we haven't shown anything yet
+						if eventCount <= 1 {
 							ch <- StreamEvent{Type: "assistant_chunk", Content: resultStr}
 						}
 					}
 				}
 				ch <- StreamEvent{Type: "message_end", SessionID: sid}
-				hasStreamedContent = false
-				hasAnyContent = false
+				eventCount = 0
 			}
 		}
+
+		// Wait for process to finish and check exit code
+		waitErr := cmd.Wait()
 
 		if err := scanner.Err(); err != nil {
 			select {
 			case <-ctx.Done():
 			default:
-				ch <- StreamEvent{Type: "error", Content: err.Error()}
+				ch <- StreamEvent{Type: "error", Content: fmt.Sprintf("read error: %v", err)}
+			}
+			return
+		}
+
+		// If process exited with error, show stderr
+		if waitErr != nil {
+			stderrStr := strings.TrimSpace(stderrBuf.String())
+			debugLog("Process exit error: %v, stderr: %s", waitErr, stderrStr)
+			select {
+			case <-ctx.Done():
+			default:
+				errMsg := fmt.Sprintf("claude exited: %v", waitErr)
+				if stderrStr != "" {
+					errMsg = stderrStr
+				}
+				ch <- StreamEvent{Type: "error", Content: errMsg}
+			}
+			return
+		}
+
+		// If we got no events at all, show stderr as a hint
+		if lineCount == 0 {
+			stderrStr := strings.TrimSpace(stderrBuf.String())
+			debugLog("No output received. stderr: %s", stderrStr)
+			if stderrStr != "" {
+				ch <- StreamEvent{Type: "error", Content: stderrStr}
+			} else {
+				ch <- StreamEvent{Type: "error", Content: "No response from Claude CLI"}
 			}
 		}
 	}()
 
 	return ch, nil
+}
+
+// processContentBlockDelta handles direct content_block_delta events.
+func processContentBlockDelta(raw map[string]json.RawMessage, ch chan<- StreamEvent) {
+	deltaRaw, ok := raw["delta"]
+	if !ok {
+		return
+	}
+	var delta map[string]json.RawMessage
+	if err := json.Unmarshal(deltaRaw, &delta); err != nil {
+		return
+	}
+	dtRaw, ok := delta["type"]
+	if !ok {
+		return
+	}
+	var dt string
+	if err := json.Unmarshal(dtRaw, &dt); err != nil {
+		return
+	}
+	if dt == "text_delta" {
+		if textRaw, ok := delta["text"]; ok {
+			var text string
+			if err := json.Unmarshal(textRaw, &text); err == nil {
+				ch <- StreamEvent{Type: "assistant_chunk", Content: text}
+			}
+		}
+	}
+}
+
+// processContentBlockStart handles direct content_block_start events.
+func processContentBlockStart(raw map[string]json.RawMessage, ch chan<- StreamEvent) {
+	cbRaw, ok := raw["content_block"]
+	if !ok {
+		return
+	}
+	var cb map[string]json.RawMessage
+	if err := json.Unmarshal(cbRaw, &cb); err != nil {
+		return
+	}
+	cbTypeRaw, ok := cb["type"]
+	if !ok {
+		return
+	}
+	var cbType string
+	if err := json.Unmarshal(cbTypeRaw, &cbType); err != nil {
+		return
+	}
+	if cbType == "tool_use" {
+		if nameRaw, ok := cb["name"]; ok {
+			var name string
+			if err := json.Unmarshal(nameRaw, &name); err == nil {
+				ch <- StreamEvent{Type: "tool_use", Tool: name}
+			}
+		}
+	}
 }
 
 // processStreamEvent handles {"type":"stream_event","event":{...}} messages.
@@ -167,58 +286,9 @@ func processStreamEvent(raw map[string]json.RawMessage, ch chan<- StreamEvent) {
 
 	switch subType {
 	case "content_block_start":
-		// Detect tool_use block starts to show [tool_name]
-		cbRaw, ok := event["content_block"]
-		if !ok {
-			return
-		}
-		var cb map[string]json.RawMessage
-		if err := json.Unmarshal(cbRaw, &cb); err != nil {
-			return
-		}
-		cbTypeRaw, ok := cb["type"]
-		if !ok {
-			return
-		}
-		var cbType string
-		if err := json.Unmarshal(cbTypeRaw, &cbType); err != nil {
-			return
-		}
-		if cbType == "tool_use" {
-			if nameRaw, ok := cb["name"]; ok {
-				var name string
-				if err := json.Unmarshal(nameRaw, &name); err == nil {
-					ch <- StreamEvent{Type: "tool_use", Tool: name}
-				}
-			}
-		}
-
+		processContentBlockStart(event, ch)
 	case "content_block_delta":
-		// Text deltas for real-time streaming
-		deltaRaw, ok := event["delta"]
-		if !ok {
-			return
-		}
-		var delta map[string]json.RawMessage
-		if err := json.Unmarshal(deltaRaw, &delta); err != nil {
-			return
-		}
-		dtRaw, ok := delta["type"]
-		if !ok {
-			return
-		}
-		var dt string
-		if err := json.Unmarshal(dtRaw, &dt); err != nil {
-			return
-		}
-		if dt == "text_delta" {
-			if textRaw, ok := delta["text"]; ok {
-				var text string
-				if err := json.Unmarshal(textRaw, &text); err == nil {
-					ch <- StreamEvent{Type: "assistant_chunk", Content: text}
-				}
-			}
-		}
+		processContentBlockDelta(event, ch)
 	}
 }
 
@@ -234,25 +304,9 @@ func extractSessionID(raw map[string]json.RawMessage) string {
 }
 
 // extractFromAssistant parses text and tool_use blocks from an "assistant" event.
-// Assistant events wrap content inside message.content:
-//
-//	{"type":"assistant","message":{"content":[{"type":"text","text":"..."}]}}
 func extractFromAssistant(raw map[string]json.RawMessage) []StreamEvent {
-	return extractContentBlocks(raw, true)
-}
-
-// extractToolUseFromAssistant extracts only tool_use events from an assistant message.
-// Used when streaming deltas already provided the text content.
-func extractToolUseFromAssistant(raw map[string]json.RawMessage) []StreamEvent {
-	return extractContentBlocks(raw, false)
-}
-
-// extractContentBlocks parses content blocks from an assistant event.
-// If includeText is false, only tool_use blocks are returned.
-func extractContentBlocks(raw map[string]json.RawMessage, includeText bool) []StreamEvent {
 	var events []StreamEvent
 
-	// Assistant events nest content inside "message"
 	contentRaw := findContentArray(raw)
 	if contentRaw == nil {
 		return events
@@ -280,12 +334,10 @@ func extractContentBlocks(raw map[string]json.RawMessage, includeText bool) []St
 
 		switch blockType {
 		case "text":
-			if includeText {
-				if textRaw, ok := block["text"]; ok {
-					var text string
-					if err := json.Unmarshal(textRaw, &text); err == nil {
-						events = append(events, StreamEvent{Type: "assistant_chunk", Content: text})
-					}
+			if textRaw, ok := block["text"]; ok {
+				var text string
+				if err := json.Unmarshal(textRaw, &text); err == nil {
+					events = append(events, StreamEvent{Type: "assistant_chunk", Content: text})
 				}
 			}
 		case "tool_use":
@@ -301,7 +353,6 @@ func extractContentBlocks(raw map[string]json.RawMessage, includeText bool) []St
 }
 
 // findContentArray locates the content array in a raw JSON message.
-// It checks both direct "content" field and nested "message.content".
 func findContentArray(raw map[string]json.RawMessage) json.RawMessage {
 	// Try message.content first (standard assistant event format)
 	if msgRaw, ok := raw["message"]; ok {
