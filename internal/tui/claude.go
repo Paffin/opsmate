@@ -51,6 +51,7 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 
 	args := []string{
 		"-p",
+		"--verbose",
 		"--output-format", "stream-json",
 		"--mcp-config", mcpConfigPath,
 	}
