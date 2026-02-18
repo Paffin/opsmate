@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -23,15 +24,38 @@ func formatAge(t time.Time) string {
 }
 
 func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	runes := []rune(s)
+	if len(runes) <= maxLen {
 		return s
 	}
-	return s[:maxLen-3] + "..."
+	return string(runes[:maxLen-3]) + "..."
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
+// derefInt32 safely dereferences an *int32, returning 0 if nil.
+func derefInt32(p *int32) int32 {
+	if p == nil {
+		return 0
 	}
-	return b
+	return *p
 }
+
+// pluralizeKind converts a Kubernetes Kind name to its plural resource name.
+// Handles standard English pluralization rules that match K8s API conventions.
+func pluralizeKind(kind string) string {
+	lower := strings.ToLower(kind)
+	switch {
+	case strings.HasSuffix(lower, "ss"), // Ingress -> ingresses
+		strings.HasSuffix(lower, "sh"),
+		strings.HasSuffix(lower, "ch"),
+		strings.HasSuffix(lower, "x"),
+		strings.HasSuffix(lower, "z"):
+		return lower + "es"
+	case strings.HasSuffix(lower, "y") && len(lower) > 1 &&
+		!strings.ContainsAny(string(lower[len(lower)-2]), "aeiou"):
+		// NetworkPolicy -> networkpolicies
+		return lower[:len(lower)-1] + "ies"
+	default:
+		return lower + "s"
+	}
+}
+

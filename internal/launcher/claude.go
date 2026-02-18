@@ -103,7 +103,7 @@ func (l *Launcher) generateClaudeMD(ctx *infractx.InfraContext) (string, error) 
 		finalContent = opsmateBlock
 	}
 
-	if err := os.WriteFile(claudeMDPath, []byte(finalContent), 0644); err != nil {
+	if err := os.WriteFile(claudeMDPath, []byte(finalContent), 0600); err != nil {
 		return "", fmt.Errorf("write CLAUDE.md: %w", err)
 	}
 
@@ -130,7 +130,7 @@ func (l *Launcher) cleanupClaudeMD(path string) {
 		if cleaned == "" {
 			_ = os.Remove(path)
 		} else {
-			_ = os.WriteFile(path, []byte(cleaned), 0644)
+			_ = os.WriteFile(path, []byte(cleaned), 0600)
 		}
 	}
 }

@@ -635,9 +635,3 @@ func getSampleFilePath(name string) string {
 	return abs
 }
 
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
-}

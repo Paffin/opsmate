@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 )
@@ -27,7 +29,7 @@ func debugLog(format string, args ...interface{}) {
 	if path == "" {
 		return
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
 	if err != nil {
 		return
 	}
@@ -44,6 +46,9 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 		return nil, fmt.Errorf("claude CLI not found in PATH")
 	}
 
+	// Normalize path separators for cross-platform compatibility
+	mcpConfigPath = filepath.ToSlash(mcpConfigPath)
+
 	args := []string{
 		"-p",
 		"--output-format", "stream-json",
@@ -52,14 +57,16 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 	if sessionID != "" {
 		args = append(args, "--resume", sessionID)
 	}
-	args = append(args, prompt)
 
 	debugLog("Running: %s %s", claudeBin, strings.Join(args, " "))
+	debugLog("Prompt (%d bytes)", len(prompt))
 
 	cmd := exec.CommandContext(ctx, claudeBin, args...)
 	cmd.Dir = workDir
+	// Inherit parent environment (PATH, HOME, API keys, etc.)
+	cmd.Env = os.Environ()
 
-	// Pipe stdin so we can close it to signal EOF
+	// Pipe stdin — deliver prompt via stdin for reliable Unicode handling
 	stdinPipe, err := cmd.StdinPipe()
 	if err != nil {
 		return nil, fmt.Errorf("create stdin pipe: %w", err)
@@ -79,7 +86,13 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 		return nil, fmt.Errorf("start claude process: %w", err)
 	}
 
-	// Close stdin immediately — prompt is passed as argument
+	// Write prompt to stdin and close to signal EOF
+	_, writeErr := io.WriteString(stdinPipe, prompt)
+	if writeErr != nil {
+		debugLog("stdin write error: %v", writeErr)
+		_ = stdinPipe.Close()
+		return nil, fmt.Errorf("write prompt to stdin: %w", writeErr)
+	}
 	_ = stdinPipe.Close()
 
 	ch := make(chan StreamEvent, 64)

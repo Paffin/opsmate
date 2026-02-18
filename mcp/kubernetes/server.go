@@ -21,10 +21,11 @@ func Run(cfg config.KubernetesConfig, maxLogLines int) error {
 	}
 
 	h := &handlers{
-		client:   k8sClient,
-		dynamic:  dynClient,
-		readonly: cfg.ReadOnly,
-		maxLines: maxLogLines,
+		client:     k8sClient,
+		dynamic:    dynClient,
+		readonly:   cfg.ReadOnly,
+		maxLines:   maxLogLines,
+		namespaces: cfg.Namespaces,
 	}
 
 	s := mcputil.NewServer("kubernetes", "0.1.0")

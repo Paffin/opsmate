@@ -3,6 +3,7 @@ package prometheus
 import (
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/paffin/opsmate/internal/config"
@@ -24,6 +25,10 @@ func Run(cfg config.PrometheusConfig) error {
 	if cfg.BasicAuth != nil {
 		h.username = cfg.BasicAuth.Username
 		h.password = cfg.BasicAuth.Password
+	}
+	// Prefer environment variable for password (avoids exposure in process listings)
+	if envPass := os.Getenv("OPSMATE_PROM_PASSWORD"); envPass != "" {
+		h.password = envPass
 	}
 
 	s := mcputil.NewServer("prometheus", "0.1.0")

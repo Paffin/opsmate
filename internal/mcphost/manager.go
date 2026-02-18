@@ -13,8 +13,9 @@ import (
 
 // MCPServerConfig represents a single MCP server entry for .mcp.json.
 type MCPServerConfig struct {
-	Command string   `json:"command"`
-	Args    []string `json:"args"`
+	Command string            `json:"command"`
+	Args    []string          `json:"args"`
+	Env     map[string]string `json:"env,omitempty"`
 }
 
 // MCPConfig is the top-level .mcp.json structure.
@@ -80,13 +81,18 @@ func (m *Manager) GenerateMCPConfig(dir string) (string, error) {
 
 	if m.cfg.Servers.Prometheus.Enabled {
 		args := []string{"mcp", "prometheus", "--url", m.cfg.Servers.Prometheus.URL}
+		var env map[string]string
 		if m.cfg.Servers.Prometheus.BasicAuth != nil {
 			args = append(args, "--username", m.cfg.Servers.Prometheus.BasicAuth.Username)
-			args = append(args, "--password", m.cfg.Servers.Prometheus.BasicAuth.Password)
+			// Pass password via environment variable to avoid exposure in process listings
+			env = map[string]string{
+				"OPSMATE_PROM_PASSWORD": m.cfg.Servers.Prometheus.BasicAuth.Password,
+			}
 		}
 		mcpCfg.MCPServers["prometheus"] = MCPServerConfig{
 			Command: m.binary,
 			Args:    args,
+			Env:     env,
 		}
 	}
 
@@ -105,7 +111,7 @@ func (m *Manager) GenerateMCPConfig(dir string) (string, error) {
 		return "", fmt.Errorf("marshal mcp config: %w", err)
 	}
 
-	if err := os.WriteFile(mcpPath, data, 0644); err != nil {
+	if err := os.WriteFile(mcpPath, data, 0600); err != nil {
 		return "", fmt.Errorf("write %s: %w", mcpPath, err)
 	}
 

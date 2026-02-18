@@ -21,14 +21,19 @@ import (
 )
 
 type handlers struct {
-	client    kubernetes.Interface
-	dynamic   dynamic.Interface
-	readonly  bool
-	maxLines  int
+	client     kubernetes.Interface
+	dynamic    dynamic.Interface
+	readonly   bool
+	maxLines   int
+	namespaces []string // allowed namespaces; empty = all
 }
 
 func (h *handlers) getPods(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ns := mcputil.OptionalString(req, "namespace", "")
+	ns, err := h.validateNamespace(ns)
+	if err != nil {
+		return mcputil.ToolError("%v", err)
+	}
 	labelSelector := mcputil.OptionalString(req, "label_selector", "")
 
 	opts := metav1.ListOptions{LabelSelector: labelSelector}
@@ -62,6 +67,10 @@ func (h *handlers) getPodLogs(ctx context.Context, req mcp.CallToolRequest) (*mc
 	}
 
 	ns := mcputil.OptionalString(req, "namespace", "default")
+	ns, err = h.validateNamespace(ns)
+	if err != nil {
+		return mcputil.ToolError("%v", err)
+	}
 	container := mcputil.OptionalString(req, "container", "")
 	tailLines := int64(mcputil.OptionalInt(req, "tail_lines", 100))
 
@@ -100,6 +109,10 @@ func (h *handlers) describe(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		return mcputil.ToolError("name is required")
 	}
 	ns := mcputil.OptionalString(req, "namespace", "default")
+	ns, err = h.validateNamespace(ns)
+	if err != nil {
+		return mcputil.ToolError("%v", err)
+	}
 
 	var result string
 	switch strings.ToLower(kind) {
@@ -116,7 +129,7 @@ func (h *handlers) describe(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 		}
 		result = fmt.Sprintf("Deployment: %s/%s\nReplicas: %d desired, %d available, %d ready\nStrategy: %s\nSelector: %v\nTemplate Labels: %v",
 			dep.Namespace, dep.Name,
-			*dep.Spec.Replicas, dep.Status.AvailableReplicas, dep.Status.ReadyReplicas,
+			derefInt32(dep.Spec.Replicas), dep.Status.AvailableReplicas, dep.Status.ReadyReplicas,
 			dep.Spec.Strategy.Type, dep.Spec.Selector.MatchLabels, dep.Spec.Template.Labels)
 	case "service":
 		svc, err := h.client.CoreV1().Services(ns).Get(ctx, name, metav1.GetOptions{})
@@ -151,6 +164,10 @@ func (h *handlers) describe(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 
 func (h *handlers) getEvents(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ns := mcputil.OptionalString(req, "namespace", "")
+	ns, err := h.validateNamespace(ns)
+	if err != nil {
+		return mcputil.ToolError("%v", err)
+	}
 	fieldSelector := mcputil.OptionalString(req, "field_selector", "")
 
 	opts := metav1.ListOptions{FieldSelector: fieldSelector}
@@ -222,6 +239,10 @@ func (h *handlers) getNodes(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 
 func (h *handlers) getDeployments(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ns := mcputil.OptionalString(req, "namespace", "")
+	ns, err := h.validateNamespace(ns)
+	if err != nil {
+		return mcputil.ToolError("%v", err)
+	}
 
 	deployments, err := h.client.AppsV1().Deployments(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -235,7 +256,7 @@ func (h *handlers) getDeployments(ctx context.Context, req mcp.CallToolRequest) 
 	for _, d := range deployments.Items {
 		_, _ = fmt.Fprintf(w, "%s\t%s\t%d/%d\t%d\t%d\t%s\n",
 			d.Namespace, d.Name,
-			d.Status.ReadyReplicas, *d.Spec.Replicas,
+			d.Status.ReadyReplicas, derefInt32(d.Spec.Replicas),
 			d.Status.UpdatedReplicas, d.Status.AvailableReplicas,
 			formatAge(d.CreationTimestamp.Time))
 	}
@@ -246,6 +267,10 @@ func (h *handlers) getDeployments(ctx context.Context, req mcp.CallToolRequest) 
 
 func (h *handlers) getServices(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	ns := mcputil.OptionalString(req, "namespace", "")
+	ns, err := h.validateNamespace(ns)
+	if err != nil {
+		return mcputil.ToolError("%v", err)
+	}
 
 	services, err := h.client.CoreV1().Services(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -291,12 +316,16 @@ func (h *handlers) apply(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 	gvr := schema.GroupVersionResource{
 		Group:    gvk.Group,
 		Version:  gvk.Version,
-		Resource: strings.ToLower(gvk.Kind) + "s",
+		Resource: pluralizeKind(gvk.Kind),
 	}
 
 	ns := obj.GetNamespace()
 	if ns == "" {
 		ns = "default"
+	}
+	ns, nsErr := h.validateNamespace(ns)
+	if nsErr != nil {
+		return mcputil.ToolError("%v", nsErr)
 	}
 
 	_, err = h.dynamic.Resource(gvr).Namespace(ns).Create(ctx, obj, metav1.CreateOptions{})
@@ -321,6 +350,10 @@ func (h *handlers) scale(ctx context.Context, req mcp.CallToolRequest) (*mcp.Cal
 		return mcputil.ToolError("replicas is required")
 	}
 	ns := mcputil.OptionalString(req, "namespace", "default")
+	ns, err = h.validateNamespace(ns)
+	if err != nil {
+		return mcputil.ToolError("%v", err)
+	}
 
 	s, err := h.client.AppsV1().Deployments(ns).GetScale(ctx, deployment, metav1.GetOptions{})
 	if err != nil {
@@ -344,6 +377,10 @@ func (h *handlers) rolloutStatus(ctx context.Context, req mcp.CallToolRequest) (
 		return mcputil.ToolError("deployment name is required")
 	}
 	ns := mcputil.OptionalString(req, "namespace", "default")
+	ns, err = h.validateNamespace(ns)
+	if err != nil {
+		return mcputil.ToolError("%v", err)
+	}
 
 	dep, err := h.client.AppsV1().Deployments(ns).Get(ctx, deployment, metav1.GetOptions{})
 	if err != nil {
@@ -351,13 +388,14 @@ func (h *handlers) rolloutStatus(ctx context.Context, req mcp.CallToolRequest) (
 	}
 
 	var status string
-	if dep.Status.UpdatedReplicas == *dep.Spec.Replicas &&
-		dep.Status.ReadyReplicas == *dep.Spec.Replicas &&
-		dep.Status.AvailableReplicas == *dep.Spec.Replicas {
+	desired := derefInt32(dep.Spec.Replicas)
+	if dep.Status.UpdatedReplicas == desired &&
+		dep.Status.ReadyReplicas == desired &&
+		dep.Status.AvailableReplicas == desired {
 		status = "✓ Successfully rolled out"
 	} else {
 		status = fmt.Sprintf("⟳ In progress: %d/%d replicas updated, %d available",
-			dep.Status.UpdatedReplicas, *dep.Spec.Replicas, dep.Status.AvailableReplicas)
+			dep.Status.UpdatedReplicas, desired, dep.Status.AvailableReplicas)
 	}
 
 	conditions := []string{}
@@ -395,6 +433,10 @@ func (h *handlers) top(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 
 	case "pods":
 		ns := mcputil.OptionalString(req, "namespace", "")
+		ns, nsErr := h.validateNamespace(ns)
+		if nsErr != nil {
+			return mcputil.ToolError("%v", nsErr)
+		}
 		pods, err := h.client.CoreV1().Pods(ns).List(ctx, metav1.ListOptions{})
 		if err != nil {
 			return mcputil.ToolError("failed to list pods: %v", err)
@@ -427,6 +469,23 @@ func (h *handlers) top(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	default:
 		return mcputil.ToolError("unsupported resource_type: %s (use 'pods' or 'nodes')", resourceType)
 	}
+}
+
+// validateNamespace checks if the requested namespace is allowed.
+// Returns the namespace to use, or an error if restricted.
+func (h *handlers) validateNamespace(ns string) (string, error) {
+	if len(h.namespaces) == 0 {
+		return ns, nil // no restrictions
+	}
+	if ns == "" {
+		return "", fmt.Errorf("namespace is required when access is restricted; allowed: %v", h.namespaces)
+	}
+	for _, allowed := range h.namespaces {
+		if ns == allowed {
+			return ns, nil
+		}
+	}
+	return "", fmt.Errorf("namespace %q is not in the allowed list: %v", ns, h.namespaces)
 }
 
 func formatPodDescription(pod *corev1.Pod) string {

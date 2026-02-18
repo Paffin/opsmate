@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	cfgFile string
-	version = "dev"
+	cfgFile  string
+	readOnly bool
+	version  = "dev"
 )
 
 func main() {
@@ -31,6 +32,7 @@ func main() {
 	}
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default: ~/.opsmate/config.yaml)")
+	rootCmd.Flags().BoolVar(&readOnly, "readonly", false, "read-only mode: disables apply, scale, delete, exec")
 
 	// MCP subcommands (used internally by .mcp.json)
 	mcpCmd := &cobra.Command{
@@ -56,6 +58,12 @@ func runRoot(cmd *cobra.Command, args []string) error {
 	cfg, err := config.Load(cfgFile)
 	if err != nil {
 		return fmt.Errorf("load config: %w", err)
+	}
+
+	// Apply --readonly flag: disables destructive operations on all servers
+	if readOnly {
+		cfg.Servers.Kubernetes.ReadOnly = true
+		cfg.Servers.Docker.ReadOnly = true
 	}
 
 	// Build server description list for the banner
