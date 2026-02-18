@@ -2,7 +2,6 @@ package tui
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -10,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 // StreamEvent represents a single streamed event from the Claude process.
@@ -47,7 +47,6 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 	args := []string{
 		"-p",
 		"--output-format", "stream-json",
-		"--verbose",
 		"--mcp-config", mcpConfigPath,
 	}
 	if sessionID != "" {
@@ -60,23 +59,50 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 	cmd := exec.CommandContext(ctx, claudeBin, args...)
 	cmd.Dir = workDir
 
+	// Pipe stdin so we can close it to signal EOF
+	stdinPipe, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, fmt.Errorf("create stdin pipe: %w", err)
+	}
+
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return nil, fmt.Errorf("create stdout pipe: %w", err)
 	}
 
-	// Capture stderr to report errors
-	var stderrBuf bytes.Buffer
-	cmd.Stderr = &stderrBuf
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, fmt.Errorf("create stderr pipe: %w", err)
+	}
 
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start claude process: %w", err)
 	}
 
+	// Close stdin immediately — prompt is passed as argument
+	_ = stdinPipe.Close()
+
 	ch := make(chan StreamEvent, 64)
 
 	go func() {
 		defer close(ch)
+
+		// Read stderr in a separate goroutine
+		var stderrLines []string
+		var stderrMu sync.Mutex
+		var wg sync.WaitGroup
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sc := bufio.NewScanner(stderr)
+			for sc.Scan() {
+				line := sc.Text()
+				debugLog("STDERR: %s", line)
+				stderrMu.Lock()
+				stderrLines = append(stderrLines, line)
+				stderrMu.Unlock()
+			}
+		}()
 
 		scanner := bufio.NewScanner(stdout)
 		// Increase scanner buffer for large JSON lines
@@ -98,6 +124,9 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 			var raw map[string]json.RawMessage
 			if err := json.Unmarshal([]byte(line), &raw); err != nil {
 				debugLog("JSON parse error: %v (line: %s)", err, line)
+				// Maybe it's plain text output (non-JSON)
+				ch <- StreamEvent{Type: "assistant_chunk", Content: line + "\n"}
+				eventCount++
 				continue
 			}
 
@@ -105,6 +134,14 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 			typeRaw, hasType := raw["type"]
 			if !hasType {
 				debugLog("No 'type' field in: %s", line)
+				// Try to extract any text content from the raw JSON
+				if resultRaw, ok := raw["result"]; ok {
+					var resultStr string
+					if err := json.Unmarshal(resultRaw, &resultStr); err == nil && resultStr != "" {
+						ch <- StreamEvent{Type: "assistant_chunk", Content: resultStr}
+						eventCount++
+					}
+				}
 				continue
 			}
 			var eventType string
@@ -117,30 +154,23 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 
 			switch eventType {
 			case "content_block_delta":
-				// Direct content_block_delta (without stream_event wrapper)
 				processContentBlockDelta(raw, ch)
 				eventCount++
 
 			case "content_block_start":
-				// Direct content_block_start
 				processContentBlockStart(raw, ch)
 				eventCount++
 
-			case "message_start", "message_delta", "message_stop":
-				// Message lifecycle events — ignore
-				eventCount++
-
-			case "content_block_stop":
-				// Content block ended — ignore
+			case "message_start", "message_delta", "message_stop",
+				"content_block_stop", "ping":
+				// Lifecycle events — ignore
 				eventCount++
 
 			case "stream_event":
-				// Wrapped stream events (older format)
 				processStreamEvent(raw, ch)
 				eventCount++
 
 			case "assistant":
-				// Complete assistant message (verbose turn output)
 				events := extractFromAssistant(raw)
 				for _, e := range events {
 					ch <- e
@@ -149,37 +179,45 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 
 			case "result":
 				sid := extractSessionID(raw)
-				// Always try to extract result text as fallback
-				if resultRaw, ok := raw["result"]; ok {
-					var resultStr string
-					if err := json.Unmarshal(resultRaw, &resultStr); err == nil && resultStr != "" {
-						// Only show if we haven't shown anything yet
-						if eventCount <= 1 {
+				if eventCount <= 1 {
+					if resultRaw, ok := raw["result"]; ok {
+						var resultStr string
+						if err := json.Unmarshal(resultRaw, &resultStr); err == nil && resultStr != "" {
 							ch <- StreamEvent{Type: "assistant_chunk", Content: resultStr}
 						}
 					}
 				}
 				ch <- StreamEvent{Type: "message_end", SessionID: sid}
 				eventCount = 0
+
+			default:
+				debugLog("Unknown event type: %s", eventType)
 			}
 		}
 
-		// Wait for process to finish and check exit code
-		waitErr := cmd.Wait()
-
 		if err := scanner.Err(); err != nil {
+			debugLog("Scanner error: %v", err)
 			select {
 			case <-ctx.Done():
 			default:
 				ch <- StreamEvent{Type: "error", Content: fmt.Sprintf("read error: %v", err)}
 			}
-			return
 		}
 
-		// If process exited with error, show stderr
+		// Wait for stderr goroutine to finish
+		wg.Wait()
+
+		// Wait for process to finish
+		waitErr := cmd.Wait()
+
+		debugLog("Process exited. Lines read: %d, exit error: %v", lineCount, waitErr)
+
+		// If process exited with error or we got no output, show stderr
+		stderrMu.Lock()
+		stderrStr := strings.TrimSpace(strings.Join(stderrLines, "\n"))
+		stderrMu.Unlock()
+
 		if waitErr != nil {
-			stderrStr := strings.TrimSpace(stderrBuf.String())
-			debugLog("Process exit error: %v, stderr: %s", waitErr, stderrStr)
 			select {
 			case <-ctx.Done():
 			default:
@@ -192,10 +230,8 @@ func RunQuery(ctx context.Context, prompt, sessionID, mcpConfigPath, workDir str
 			return
 		}
 
-		// If we got no events at all, show stderr as a hint
 		if lineCount == 0 {
-			stderrStr := strings.TrimSpace(stderrBuf.String())
-			debugLog("No output received. stderr: %s", stderrStr)
+			debugLog("No output. stderr: %s", stderrStr)
 			if stderrStr != "" {
 				ch <- StreamEvent{Type: "error", Content: stderrStr}
 			} else {
@@ -264,7 +300,6 @@ func processContentBlockStart(raw map[string]json.RawMessage, ch chan<- StreamEv
 }
 
 // processStreamEvent handles {"type":"stream_event","event":{...}} messages.
-// These contain real-time content_block_delta and content_block_start events.
 func processStreamEvent(raw map[string]json.RawMessage, ch chan<- StreamEvent) {
 	eventRaw, ok := raw["event"]
 	if !ok {
@@ -354,7 +389,6 @@ func extractFromAssistant(raw map[string]json.RawMessage) []StreamEvent {
 
 // findContentArray locates the content array in a raw JSON message.
 func findContentArray(raw map[string]json.RawMessage) json.RawMessage {
-	// Try message.content first (standard assistant event format)
 	if msgRaw, ok := raw["message"]; ok {
 		var msg map[string]json.RawMessage
 		if err := json.Unmarshal(msgRaw, &msg); err == nil {
@@ -363,11 +397,8 @@ func findContentArray(raw map[string]json.RawMessage) json.RawMessage {
 			}
 		}
 	}
-
-	// Fallback: try direct content field
 	if contentRaw, ok := raw["content"]; ok {
 		return contentRaw
 	}
-
 	return nil
 }
